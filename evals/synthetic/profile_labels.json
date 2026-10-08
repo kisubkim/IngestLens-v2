@@ -1,0 +1,21 @@
+{
+  "documents": [
+    {
+      "file": "manual.pdf",
+      "pages": {
+        "1": "text",
+        "2": "text",
+        "3": "text",
+        "4": "text",
+        "5": "text",
+        "6": "text",
+        "7": "text",
+        "8": "text",
+        "9": "table",
+        "10": "diagram",
+        "11": "scanned",
+        "12": "text"
+      }
+    }
+  ]
+}

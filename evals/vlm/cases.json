@@ -1,0 +1,102 @@
+{
+  "name": "합성 5페이지",
+  "documents": [
+    {
+      "file": "vlm_doc.pdf",
+      "cases": [
+        {
+          "page": 1,
+          "id": "text_control",
+          "title": "텍스트 페이지 (VLM 미사용, 대조군)",
+          "expect": {
+            "label": "text",
+            "facts": [
+              "20 mTorr",
+              "1500W"
+            ]
+          }
+        },
+        {
+          "page": 2,
+          "id": "scan_text",
+          "title": "스캔 본문",
+          "expect": {
+            "label": "scanned",
+            "ocr_text": "2. 비상 대응 절차\n가스 누출 경보가 울리면 즉시 비상 정지 버튼을 누르고 작업장을 벗어난다.\n누출 가스가 NF3인 경우 환기 장치를 최대로 가동하고 안전팀(내선 4119)에 연락한다.\n복구 작업은 가스 농도가 1 ppm 이하로 떨어진 뒤에만 시작한다.\n모든 조치 내용은 사고 보고서 양식 SF-07에 기록하고 24시간 안에 제출한다.",
+            "title": "비상 대응 절차",
+            "facts": [
+              "NF3",
+              "4119",
+              "1 ppm",
+              "SF-07",
+              "24시간"
+            ],
+            "no_single_column_table": true
+          }
+        },
+        {
+          "page": 3,
+          "id": "scan_table",
+          "title": "스캔 표",
+          "expect": {
+            "label": "scanned",
+            "ocr_text": "3. 분기별 가동률\n구분 가동률 비가동 사유\n1분기 92.1% 정기 점검\n2분기 88.4% 펌프 교체\n3분기 95.0% 없음\n4분기 90.7% 전원 공사",
+            "table_cells": [
+              "구분",
+              "가동률",
+              "비가동 사유",
+              "1분기",
+              "92.1%",
+              "정기 점검",
+              "2분기",
+              "88.4%",
+              "펌프 교체",
+              "3분기",
+              "95.0%",
+              "없음",
+              "4분기",
+              "90.7%",
+              "전원 공사"
+            ],
+            "table_columns": 3
+          }
+        },
+        {
+          "page": 4,
+          "id": "chart",
+          "title": "막대 차트 그림",
+          "expect": {
+            "figure_type": "chart",
+            "figure_facts": [
+              "120",
+              "180",
+              "90",
+              "210",
+              "1월",
+              "4월"
+            ],
+            "language": "ko",
+            "caption": "그림 1"
+          }
+        },
+        {
+          "page": 5,
+          "id": "diagram",
+          "title": "공정 흐름도 그림",
+          "expect": {
+            "figure_type": "diagram",
+            "figure_facts": [
+              "원료 투입",
+              "혼합",
+              "건조",
+              "포장",
+              "수분 검사"
+            ],
+            "language": "ko",
+            "caption": "그림 2"
+          }
+        }
+      ]
+    }
+  ]
+}

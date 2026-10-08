@@ -1,0 +1,29 @@
+# Self-hosted vLLM OpenAI-compatible endpoints.
+# Empty base_url disables that model; the pipeline then records a fallback decision.
+
+embedding:
+  base_url: ""            # e.g. http://vllm-embed:8000/v1  (vllm serve BAAI/bge-m3 --task embed)
+  api_key: EMPTY
+  model: bge-m3
+  dim: 1024               # used by the dev hash embedder and to validate the endpoint
+  max_tokens: 8192
+  batch_size: 32
+
+reranker:
+  base_url: ""            # optional, e.g. http://vllm-rerank:8000/v1  (vllm serve BAAI/bge-reranker-v2-m3 --task score)
+  api_key: EMPTY
+  model: bge-reranker-v2-m3
+  timeout_s: 60
+
+vlm:
+  base_url: ""            # e.g. http://vllm-vl:8000/v1
+  api_key: EMPTY
+  model: Qwen2.5-VL-7B-Instruct
+  max_concurrency: 4      # total in-flight requests across all runs
+  render_dpi: 150         # full pages (OCR)
+  crop_dpi: 170           # figure / table crops
+  image_format: jpeg      # jpeg keeps base64 payloads small; png for lossless OCR if needed
+  max_tokens: 2048
+  max_tokens_retry: 4096  # an answer cut off at max_tokens is asked again once with this limit (long pages, big tables)
+  max_retries: 2
+  timeout_s: 180

@@ -1,0 +1,62 @@
+{
+  "name": "실제 공개 문서 10종",
+  "documents": [
+    {"file": "ko_text_hunminjeongeum.pdf", "cases": [
+      {"page": 2, "id": "hm_text", "title": "한국어 본문 (위키백과 훈민정음)",
+       "expect": {"label": "text", "facts": ["1940년", "국보 제70호", "유네스코 세계기록유산", "가로 20㎝"]}}
+    ]},
+    {"file": "ko_image_gyeongbokgung.pdf", "cases": [
+      {"page": 3, "id": "gb_photos", "title": "사진이 든 표 (경복궁 궁성의 문)",
+       "expect": {"figure_type": "photo", "facts": ["광화문", "건춘문", "영추문", "신무문"], "language": "ko"}}
+    ]},
+    {"file": "ko_chart_population.pdf", "cases": [
+      {"page": 2, "id": "pop_chart", "title": "벡터 선 그래프 (인구 추이, 영어 라벨)",
+       "expect": {"label": "chart", "figure_type": "chart", "figure_facts": ["South Korea Population", "1960", "2020"]}}
+    ]},
+    {"file": "ko_chart_kostat.pdf", "cases": [
+      {"page": 2, "id": "kostat_birth_chart", "title": "벡터 차트 + 표 (출생 추이)",
+       "expect": {"facts": ["20,867", "764명(3.8%)"], "figure_type": "chart", "figure_facts": ["23,947", "20,035", "21,803"],
+                  "language": "ko", "caption": "전국 월별 출생 추이", "table_cells": ["39,456", "3,691", "168,671"]}}
+    ]},
+    {"file": "ko_table_kostat.pdf", "cases": [
+      {"page": 1, "id": "kostat_table_native", "title": "통계표 (원본 텍스트, 아래 스캔 통계표와 같은 표)",
+       "expect": {"label": "table", "table_cells": ["302,676", "-123,753", "110,831", "20,867", "28,971", "7,196"]}}
+    ]},
+    {"file": "ko_scan_kostat.pdf", "cases": [
+      {"page": 1, "id": "scan_notice", "title": "스캔 본문 + 표 (일러두기)",
+       "expect": {"label": "scanned", "facts": ["통계법", "101003", "kostat.go.kr", "kosis.kr", "1981년 1월"],
+                  "table_cells": ["합계출산율", "조출생률"]}},
+      {"page": 2, "id": "scan_birth", "title": "스캔 차트 + 표 (출생)",
+       "expect": {"label": "scanned", "facts": ["20,867", "764명"], "table_cells": ["230,028", "39,456", "3,691", "168,671"]}},
+      {"page": 3, "id": "scan_table", "title": "스캔 통계표 (원본 텍스트는 kostat_table_native)",
+       "expect": {"label": "scanned", "table_cells": ["302,676", "-123,753", "110,831", "20,867", "28,971", "7,196"]}}
+    ]},
+    {"file": "ko_mixed_seoul.pdf", "cases": [
+      {"page": 3, "id": "seoul_climate", "title": "기후 표 + 본문 (서울특별시)",
+       "expect": {"facts": ["1927년 12월 31일", "1,417.9mm"], "table_cells": ["1,417.9", "414.4", "2,143.1"]}}
+    ]},
+    {"file": "en_scan_naca1135.pdf", "cases": [
+      {"page": 2, "id": "naca_text", "title": "영어 스캔 본문 (오래된 OCR 텍스트층에 오류 있음)",
+       "expect": {"facts": ["REPORT 1135", "NACA TN 1428", "one-dimensional flow"]}},
+      {"page": 4, "id": "naca_table", "title": "영어 스캔 숫자 표 (Table I)",
+       "expect": {"facts": ["SUBSONIC FLOW", "SUPERSONIC FLOW", ".01095", ".02191"]}},
+      {"page": 5, "id": "naca_chart", "title": "90도 회전된 스캔 차트 (Chart 1)",
+       "expect": {"facts": ["Mach number", "mass-flow"]}}
+    ]},
+    {"file": "en_mixed_nist.pdf", "cases": [
+      {"page": 3, "id": "nist_fig1", "title": "다이어그램 이미지 (Zero Trust Access)",
+       "expect": {"figure_type": "diagram", "figure_facts": ["Untrusted Zone", "Implicit Trust Zone", "PDP/PEP", "Resource"], "caption": "Figure 1"}},
+      {"page": 4, "id": "nist_fig3", "title": "다이어그램 이미지 (Device Agent/Gateway Model)",
+       "expect": {"figure_type": "diagram", "figure_facts": ["Policy Engine", "Policy Administrator", "Gateway", "Agent", "Control Plane"],
+                  "caption": "Figure 3"}}
+    ]},
+    {"file": "en_paper_docling.pdf", "cases": [
+      {"page": 1, "id": "docling_text", "title": "논문 첫 페이지",
+       "expect": {"label": "text", "facts": ["DocLayNet", "TableFormer", "IBM Research"]}},
+      {"page": 3, "id": "docling_fig1", "title": "벡터 + 아이콘 파이프라인 그림 (Figure 1)",
+       "expect": {"figure_type": "diagram", "figure_facts": ["Parse", "OCR", "Layout", "Table", "JSON"], "caption": "Figure 1"}},
+      {"page": 5, "id": "docling_table1", "title": "선 없는 표 (Table 1)",
+       "expect": {"facts": ["Apple M3 Max", "6.20 GB"], "table_cells": ["Apple M3 Max", "177 s", "6.20 GB", "Intel(R) Xeon"], "caption": "Table 1"}}
+    ]}
+  ]
+}

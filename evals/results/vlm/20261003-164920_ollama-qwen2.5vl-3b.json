@@ -1,0 +1,453 @@
+{
+ "name": "Ollama qwen2.5vl:3b",
+ "notes": "RTX 5070 Ti 16GB, Ollama 0.35 Docker, Q4_K_M, OLLAMA_NUM_PARALLEL=2",
+ "created_at": "2026-10-03T16:49:20+00:00",
+ "git_commit": "3ce001b+dirty",
+ "models": {
+  "vlm": {
+   "base_url": "http://localhost:11435/v1",
+   "model": "qwen2.5vl:3b",
+   "max_concurrency": 2,
+   "render_dpi": 150,
+   "crop_dpi": 170,
+   "image_format": "jpeg",
+   "max_tokens": 2048
+  },
+  "embedding": {
+   "base_url": "http://localhost:11435/v1",
+   "model": "bge-m3",
+   "max_tokens": 8192
+  },
+  "reranker": {
+   "base_url": "http://localhost:8081",
+   "model": "BAAI/bge-reranker-v2-m3"
+  }
+ },
+ "prompts_sha": "efc54384eb2f",
+ "summary": {
+  "score": 0.864,
+  "checks_passed": 16,
+  "checks_total": 19,
+  "by_check": {
+   "label": {
+    "label": "페이지 분류",
+    "score": 1.0,
+    "passed": 3,
+    "total": 3
+   },
+   "facts": {
+    "label": "핵심 사실 포함",
+    "score": 1.0,
+    "passed": 2,
+    "total": 2
+   },
+   "ocr_cer": {
+    "label": "OCR 정확도 (1 - CER)",
+    "score": 1.0,
+    "passed": 2,
+    "total": 2
+   },
+   "title": {
+    "label": "제목 인식",
+    "score": 0.0,
+    "passed": 0,
+    "total": 1
+   },
+   "no_1col_table": {
+    "label": "본문을 1열 표로 만들지 않음",
+    "score": 1.0,
+    "passed": 1,
+    "total": 1
+   },
+   "table_cells": {
+    "label": "표 셀 값",
+    "score": 1.0,
+    "passed": 1,
+    "total": 1
+   },
+   "table_columns": {
+    "label": "표 열 수",
+    "score": 1.0,
+    "passed": 1,
+    "total": 1
+   },
+   "figure_type": {
+    "label": "그림 종류(TYPE)",
+    "score": 0.5,
+    "passed": 1,
+    "total": 2
+   },
+   "figure_facts": {
+    "label": "그림 내용(값·라벨)",
+    "score": 1.0,
+    "passed": 2,
+    "total": 2
+   },
+   "language": {
+    "label": "한국어로 답변",
+    "score": 0.541,
+    "passed": 1,
+    "total": 2
+   },
+   "caption": {
+    "label": "캡션 연결",
+    "score": 1.0,
+    "passed": 2,
+    "total": 2
+   }
+  },
+  "ocr_cer": 0.0,
+  "ingest_seconds": 21.5,
+  "parse_seconds": 13.9,
+  "vlm_calls": 4,
+  "vlm_errors": 0,
+  "vlm_truncated": 1,
+  "vlm_avg_seconds": 4.32
+ },
+ "dataset": "합성 5페이지",
+ "dataset_version": "c42280bd6900",
+ "pages": [
+  {
+   "doc": "vlm_doc.pdf",
+   "page": 1,
+   "id": "text_control",
+   "title": "텍스트 페이지 (VLM 미사용, 대조군)",
+   "score": 1.0,
+   "checks": [
+    {
+     "id": "label",
+     "label": "페이지 분류",
+     "score": 1.0,
+     "pass": true,
+     "value": "text"
+    },
+    {
+     "id": "facts",
+     "label": "핵심 사실 포함",
+     "score": 1.0,
+     "pass": true,
+     "value": {
+      "missing": []
+     }
+    }
+   ],
+   "label": "text",
+   "vlm_seconds": null,
+   "elements": [
+    {
+     "type": "title",
+     "source_tool": "pymupdf_text",
+     "content": "1. 장비 개요",
+     "meta": {}
+    },
+    {
+     "type": "text",
+     "source_tool": "pymupdf_text",
+     "content": "본 장비는 반도체 식각 공정용 플라즈마 챔버이다. 챔버 내부 압력은 20 mTorr로 유지하며\nRF 전력은 최대 1500W까지 인가할 수 있다. 정기 점검은 매월 첫째 주 화요일에 실시한다.",
+     "meta": {}
+    }
+   ],
+   "expected_text": null
+  },
+  {
+   "doc": "vlm_doc.pdf",
+   "page": 2,
+   "id": "scan_text",
+   "title": "스캔 본문",
+   "score": 0.8,
+   "checks": [
+    {
+     "id": "label",
+     "label": "페이지 분류",
+     "score": 1.0,
+     "pass": true,
+     "value": "scanned"
+    },
+    {
+     "id": "ocr_cer",
+     "label": "OCR 정확도 (1 - CER)",
+     "score": 1.0,
+     "pass": true,
+     "value": 0.0
+    },
+    {
+     "id": "facts",
+     "label": "핵심 사실 포함",
+     "score": 1.0,
+     "pass": true,
+     "value": {
+      "missing": []
+     }
+    },
+    {
+     "id": "title",
+     "label": "제목 인식",
+     "score": 0.0,
+     "pass": false,
+     "value": []
+    },
+    {
+     "id": "no_1col_table",
+     "label": "본문을 1열 표로 만들지 않음",
+     "score": 1.0,
+     "pass": true,
+     "value": 0
+    }
+   ],
+   "label": "scanned",
+   "vlm_seconds": null,
+   "elements": [
+    {
+     "type": "text",
+     "source_tool": "vlm_ocr",
+     "content": "2. 비상 대응 절차",
+     "meta": {}
+    },
+    {
+     "type": "text",
+     "source_tool": "vlm_ocr",
+     "content": "- 가스 누출 경보가 울리면 즉시 비상 정지 버튼을 누르고 작업장을 벗어난다.\n- 누출 가스가 NF3인 경우 환기 장치를 최대로 가동하고 안전팀(내선 4119)에 연락한다.\n- 복구 작업은 가스 농도가 1 ppm 이하로 떨어진 뒤에만 시작한다.\n- 모든 조치 내용은 사고 보고서 양식 SF-07에 기록하고 24시간 안에 제출한다.",
+     "meta": {}
+    }
+   ],
+   "expected_text": "2. 비상 대응 절차\n가스 누출 경보가 울리면 즉시 비상 정지 버튼을 누르고 작업장을 벗어난다.\n누출 가스가 NF3인 경우 환기 장치를 최대로 가동하고 안전팀(내선 4119)에 연락한다.\n복구 작업은 가스 농도가 1 ppm 이하로 떨어진 뒤에만 시작한다.\n모든 조치 내용은 사고 보고서 양식 SF-07에 기록하고 24시간 안에 제출한다."
+  },
+  {
+   "doc": "vlm_doc.pdf",
+   "page": 3,
+   "id": "scan_table",
+   "title": "스캔 표",
+   "score": 1.0,
+   "checks": [
+    {
+     "id": "label",
+     "label": "페이지 분류",
+     "score": 1.0,
+     "pass": true,
+     "value": "scanned"
+    },
+    {
+     "id": "ocr_cer",
+     "label": "OCR 정확도 (1 - CER)",
+     "score": 1.0,
+     "pass": true,
+     "value": 0.0
+    },
+    {
+     "id": "table_cells",
+     "label": "표 셀 값",
+     "score": 1.0,
+     "pass": true,
+     "value": {
+      "missing": []
+     }
+    },
+    {
+     "id": "table_columns",
+     "label": "표 열 수",
+     "score": 1.0,
+     "pass": true,
+     "value": 3
+    }
+   ],
+   "label": "scanned",
+   "vlm_seconds": null,
+   "elements": [
+    {
+     "type": "text",
+     "source_tool": "vlm_ocr",
+     "content": "3. 분기별 가동률",
+     "meta": {}
+    },
+    {
+     "type": "table",
+     "source_tool": "vlm_ocr",
+     "content": "| 구분 | 가동률 | 비가동 사유 |\n| --- | --- | --- |\n| 1분기 | 92.1% | 정기 점검 |\n| 2분기 | 88.4% | 펌프 교체 |\n| 3분기 | 95.0% | 없음 |\n| 4분기 | 90.7% | 전원 공사 |",
+     "meta": {}
+    }
+   ],
+   "expected_text": "3. 분기별 가동률\n구분 가동률 비가동 사유\n1분기 92.1% 정기 점검\n2분기 88.4% 펌프 교체\n3분기 95.0% 없음\n4분기 90.7% 전원 공사"
+  },
+  {
+   "doc": "vlm_doc.pdf",
+   "page": 4,
+   "id": "chart",
+   "title": "막대 차트 그림",
+   "score": 0.75,
+   "checks": [
+    {
+     "id": "figure_type",
+     "label": "그림 종류(TYPE)",
+     "score": 0.0,
+     "pass": false,
+     "value": [
+      "diagram"
+     ]
+    },
+    {
+     "id": "figure_facts",
+     "label": "그림 내용(값·라벨)",
+     "score": 1.0,
+     "pass": true,
+     "value": {
+      "missing": []
+     }
+    },
+    {
+     "id": "language",
+     "label": "한국어로 답변",
+     "score": 1.0,
+     "pass": true,
+     "value": 1.0
+    },
+    {
+     "id": "caption",
+     "label": "캡션 연결",
+     "score": 1.0,
+     "pass": true,
+     "value": [
+      "그림 1. 월별 웨이퍼 불량 수"
+     ]
+    }
+   ],
+   "label": "text",
+   "vlm_seconds": 9.2,
+   "elements": [
+    {
+     "type": "title",
+     "source_tool": "pymupdf_text",
+     "content": "4. 품질 현황",
+     "meta": {}
+    },
+    {
+     "type": "text",
+     "source_tool": "pymupdf_text",
+     "content": "아래 그림은 월별 불량 웨이퍼 수를 나타낸다. 원인 분석은 품질팀이 담당한다.",
+     "meta": {}
+    },
+    {
+     "type": "figure",
+     "source_tool": "vlm_figures",
+     "content": "**그림 1. 월별 웨이퍼 불량 수**\n\n| 월별 웨이퍼 불량 수 |\n| --- |\n| 120 | 180 | 90 | 210 |\n| 1월 | 2월 | 3월 | 4월 |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |  |\n|  |  |  |",
+     "meta": {
+      "figure_type": "diagram",
+      "vlm_seconds": 9.19,
+      "caption": "그림 1. 월별 웨이퍼 불량 수"
+     }
+    }
+   ],
+   "expected_text": null
+  },
+  {
+   "doc": "vlm_doc.pdf",
+   "page": 5,
+   "id": "diagram",
+   "title": "공정 흐름도 그림",
+   "score": 0.77,
+   "checks": [
+    {
+     "id": "figure_type",
+     "label": "그림 종류(TYPE)",
+     "score": 1.0,
+     "pass": true,
+     "value": [
+      "diagram"
+     ]
+    },
+    {
+     "id": "figure_facts",
+     "label": "그림 내용(값·라벨)",
+     "score": 1.0,
+     "pass": true,
+     "value": {
+      "missing": []
+     }
+    },
+    {
+     "id": "language",
+     "label": "한국어로 답변",
+     "score": 0.082,
+     "pass": false,
+     "value": 0.04
+    },
+    {
+     "id": "caption",
+     "label": "캡션 연결",
+     "score": 1.0,
+     "pass": true,
+     "value": [
+      "그림 2. 제조 공정 흐름도"
+     ]
+    }
+   ],
+   "label": "text",
+   "vlm_seconds": 0.9,
+   "elements": [
+    {
+     "type": "title",
+     "source_tool": "pymupdf_text",
+     "content": "5. 제조 공정",
+     "meta": {}
+    },
+    {
+     "type": "text",
+     "source_tool": "pymupdf_text",
+     "content": "제조 공정은 네 단계로 이루어지며 건조 단계 뒤에 수분 검사를 거친다.",
+     "meta": {}
+    },
+    {
+     "type": "figure",
+     "source_tool": "vlm_figures",
+     "content": "**그림 2. 제조 공정 흐름도**\n\n| Component | Direction |\n|------------|------------|\n| 원료 투입 | → |\n| 혼합 | → |\n| 건조 | → |\n| 포장 | |\n| 수분 검사 | ↓ |\n\n**Diagram:**\n\nThe diagram represents a process flow for a manufacturing or production process. The flow starts with the input of raw materials, followed by mixing, drying, and packaging. The process is interrupted by a quality control check for moisture content.",
+     "meta": {
+      "figure_type": "diagram",
+      "vlm_seconds": 0.86,
+      "caption": "그림 2. 제조 공정 흐름도"
+     }
+    }
+   ],
+   "expected_text": null
+  }
+ ],
+ "runs": [
+  {
+   "file": "vlm_doc.pdf",
+   "seconds": 21.5,
+   "steps": {
+    "intake": 0.0,
+    "profile": 5.13,
+    "strategy": 0.25,
+    "parse": 13.91,
+    "chunk": 0.0,
+    "embed": 0.5
+   },
+   "parse": {
+    "elements": 12,
+    "by_type": {
+     "title": 3,
+     "text": 6,
+     "table": 1,
+     "figure": 2
+    },
+    "by_tool": {
+     "pymupdf_text": 6,
+     "vlm_ocr": 4,
+     "vlm_figures": 2
+    },
+    "vlm_enabled": true,
+    "vlm_calls": 4,
+    "vlm_errors": 0,
+    "vlm_truncated": 1,
+    "vlm_avg_seconds": 4.32,
+    "figure_regions": 2,
+    "figures_described": 2,
+    "tables_reextracted": 0,
+    "pages_relabeled": 0,
+    "office_hints": {},
+    "window_prepare_s": 1.4,
+    "window_vlm_wait_s": 12.5,
+    "vlm_image_mb": 0.2
+   }
+  }
+ ]
+}

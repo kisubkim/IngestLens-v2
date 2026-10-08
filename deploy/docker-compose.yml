@@ -1,0 +1,49 @@
+# IngestLens 오프라인 배포 (운영 서버용). 인터넷 없이 동작한다.
+#
+#   ./install.sh        # 이미지 불러오기 + 앱과 PDF 엔진 시작
+#
+# 모델은 이 compose 밖에서 돈다(README.md):
+#   - VLM: 이미 운영 중인 vLLM (예: Qwen3-VL)
+#   - 임베딩 + reranker: model-server.sh 로 띄우는 모델 서버 (GPU 1장, 프로세스 1개)
+# 각 주소는 같은 폴더의 models.yaml 에 적는다.
+
+name: ingestlens-server   # 개발용 docker-compose.yml(프로젝트 이름 ingestlens)과 겹치지 않게
+
+services:
+  # PDF 엔진 ToolPDF(AGPL-3.0, 별도 프로그램, 묶음의 toolpdf/ 폴더). 앱과 같은 데이터 폴더를 /data 로 마운트하고,
+  # 파일은 그 안의 상대 경로로 주고받는다(공유 폴더 모드). 포트는 밖에 열지 않고 앱만 compose 네트워크로 접속한다.
+  toolpdf:
+    image: toolpdf:${TOOLPDF_VERSION:?.env 에 TOOLPDF_VERSION 을 적으세요}
+    restart: unless-stopped
+    environment:
+      TOOLPDF_SHARED_ROOT: /data
+      TOOLPDF_API_KEY: ${TOOLPDF_API_KEY:-}
+      TOOLPDF_WORKERS: ${TOOLPDF_WORKERS:-4}
+    volumes:
+      - ${INGESTLENS_DATA_DIR:-./data}:/data
+      - toolpdf-cache:/cache
+
+  app:
+    image: ingestlens:${INGESTLENS_VERSION:?.env 에 INGESTLENS_VERSION 을 적으세요}
+    restart: unless-stopped
+    environment:
+      RAG_MODELS_FILE: /config/models.yaml
+      RAG_TOOLPDF_URL: http://toolpdf:8095
+      RAG_TOOLPDF_TRANSFER: shared
+      RAG_TOOLPDF_API_KEY: ${TOOLPDF_API_KEY:-}
+      # 사용자들이 다른 PC에서 접속하므로, 설정 변경·문서 삭제·수집 API는 이 키로만 허용된다. 반드시 설정한다.
+      RAG_API_KEY: ${RAG_API_KEY:-}
+    volumes:
+      - ${INGESTLENS_DATA_DIR:-./data}:/data      # 올린 문서, DB, 벡터. 백업 대상
+      - ./models.yaml:/config/models.yaml:ro
+    ports:
+      - "${INGESTLENS_PORT:-8000}:8000"
+    # 모델 서버를 같은 서버의 호스트에서 띄우면 컨테이너에서 host.docker.internal 로 접근한다(models.yaml).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      toolpdf:
+        condition: service_healthy
+
+volumes:
+  toolpdf-cache:    # HTTP 업로드 방식의 캐시. 공유 폴더 방식에서는 거의 쓰지 않는다

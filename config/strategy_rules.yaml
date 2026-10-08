@@ -1,0 +1,69 @@
+# Rules used by the Profiler and Strategy agents. Every decision records the rule id it matched,
+# so tune thresholds here and compare runs in the UI.
+
+profiler:
+  batch_pages: 20
+  # Rules are evaluated top to bottom; first match wins.
+  rules:
+    - id: scanned
+      label: scanned
+      when: {max_text_chars: 50, min_image_area_ratio: 0.5}
+    - id: table_dominant
+      label: table
+      when: {min_tables: 1, min_table_area_ratio: 0.3}
+    - id: table_text_share     # M6: small table carrying most of the page's text (was classified mixed)
+      label: table
+      when: {min_tables: 1, min_table_text_share: 0.5}
+    - id: vector_drawings
+      label: diagram
+      when: {min_drawings: 120}
+    - id: image_area
+      label: image_heavy
+      when: {min_image_area_ratio: 0.4}
+    - id: text_rich
+      label: text
+      when: {min_text_chars: 200}
+  default: {id: fallback_mixed, label: mixed}
+  # Pages classified with confidence below this go to the VLM for a second opinion.
+  vlm_review_below: 0.6
+  vlm_review_max_pages: 10
+
+strategy:
+  # Page label -> parser. VLM parsers fall back to `fallback` when the VLM is not configured.
+  #   pymupdf_text / pymupdf_tables: native text (+ ruled tables when the page has drawings)
+  #   vlm_ocr: whole page transcribed to Markdown (no usable text layer)
+  #   vlm_figures: native text + every figure region described by the VLM (whole page if none found)
+  parsers:
+    text: pymupdf_text
+    mixed: pymupdf_text
+    table: pymupdf_tables
+    scanned: vlm_ocr
+    image_heavy: vlm_figures
+    diagram: vlm_figures
+    chart: vlm_figures
+  fallback: pymupdf_text
+  heading_size_ratio: 1.15      # span size >= body size * ratio counts as heading
+  section_min_page_ratio: 0.15  # pages with headings / total pages to choose section chunking
+  target_tokens: 512
+  overlap_tokens: 64
+  dominant_ratio: 0.6           # label share needed to call a document "<label>-dominant"
+
+parse:
+  window_pages: 10          # pages prepared per worker call; bounds memory on large documents
+  windows_in_flight: 6      # windows asked of the PDF engine at once; > its TOOLPDF_WORKERS so VLM calls overlap with preparation
+  figures:
+    enrich_native_pages: true   # also describe figures found on text/table pages
+    min_area_ratio: 0.04        # image or drawing cluster share of the page to count as a figure
+    max_per_page: 4
+  captions:
+    pattern: '^[\[<〈《【(]?\s*(그림|표|도표|Figure|Fig\.|Table|Chart)\s*[\dIVX]+'   # also [그림 1], <표 1>, 【그림 1】
+    max_gap: 40                 # points between figure/table edge and caption
+  tables:
+    max_empty_cell_ratio: 0.5   # worse than this -> re-extract with the VLM
+  relabel_chart_min_area: 0.3   # a chart covering this share of a diagram/image page relabels the page
+
+office:
+  prefer: libreoffice       # libreoffice | native. native = python-docx/pptx/openpyxl rendering, no LibreOffice needed
+  xlsx: native              # spreadsheets: native keeps every table readable; LibreOffice cuts wide sheets across pages
+  xlsx_rows_per_page: 24    # rows per rendered table page (header repeated on each)
+  xlsx_max_rows: 5000       # per sheet; larger sheets are truncated and the decision says so

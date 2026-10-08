@@ -1,0 +1,11 @@
+status: succeeded 
+total: 25.4s   peak RSS (incl. workers): 1125 MB   pdf: 150.1 MB, 300 pages
+  intake        0.0s
+  profile      0.52s
+  strategy     0.02s
+  parse        19.9s
+  chunk        0.03s
+  embed        2.58s
+  profile: {'text': 200, 'scanned': 100}
+  parse:   {'elements': 800, 'vlm_calls': 200, 'vlm_errors': 0, 'vlm_avg_seconds': 0.33, 'figures_described': 100, 'window_prepare_s': 56.0, 'window_vlm_wait_s': 54.8, 'vlm_image_mb': 269.1}
+  chunk:   {'count': 500, 'tokens_avg': 88.1, 'too_short': 300, 'too_long': 0}

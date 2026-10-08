@@ -1,0 +1,66 @@
+# 비밀·로컬 설정
+# .env 에는 API 키가 들어 있다. config/models.yaml 은 빈 endpoint 템플릿이라 올린다.
+# 실제 base_url / api_key 는 복사본(*.local.yaml)에 두고 RAG_MODELS_FILE 로 지정한다.
+.env
+.env.*
+!.env.example
+*.local.yaml
+
+# Python 가상환경, 바이트코드, 테스트·린트 캐시
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+
+# 실행 데이터. RAG_DATA_DIR 기본값(./data)에 업로드 원본, 변환 PDF,
+# 페이지 이미지 캐시, SQLite(rag.db), 내장 Qdrant 가 쌓인다.
+data/
+data-docker/
+release/
+deploy/data/
+deploy/models/
+deploy/.env
+deploy/model-server.env
+deploy/model-server.pid
+deploy/model-server.log
+deploy/singularity.env
+deploy/*.pid
+deploy/*.log
+deploy/sif/
+docker/certs/*.crt
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 프론트 의존성과 빌드 결과. 소스(frontend/src)와 package-lock.json 은 올린다.
+node_modules/
+frontend/dist/
+dist/
+*.tsbuildinfo
+
+# 오프라인 반입용으로 받아 둔 wheel. 소스가 아니다.
+wheelhouse/
+*.whl
+
+# OS·에디터
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+*.swp
+*~
+~$*
+
+# 로그
+*.log

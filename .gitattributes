@@ -1,0 +1,6 @@
+# cmd 는 LF 줄바꿈 bat 파일에서 goto/라벨을 잘못 읽는다. sh 는 CRLF 이면 Linux 에서 실행되지 않는다.
+*.bat text eol=crlf
+*.sh  text eol=lf
+
+# 서버에서 sh 가 읽는 설정 파일
+deploy/*.env.example text eol=lf

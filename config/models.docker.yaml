@@ -1,0 +1,29 @@
+# docker-compose.yml 스택용 endpoint. 컨테이너 안의 서비스 이름으로 접근한다.
+# Ollama 는 /tokenize 가 없어서 chars_per_token 은 기본값(2.5)으로 폴백한다.
+
+embedding:
+  base_url: http://ollama:11434/v1
+  api_key: ollama
+  model: bge-m3
+  dim: 1024
+  max_tokens: 8192
+  batch_size: 16
+
+reranker:
+  base_url: http://reranker:8080   # docker/reranker/server.py. model 은 RERANK_MODEL 과 같아야 한다
+  api_key: EMPTY
+  model: BAAI/bge-reranker-v2-m3
+  timeout_s: 60
+
+vlm:
+  base_url: http://ollama:11434/v1
+  api_key: ollama
+  model: qwen2.5vl:7b
+  max_concurrency: 2
+  render_dpi: 150
+  crop_dpi: 170
+  image_format: jpeg
+  max_tokens: 2048
+  max_tokens_retry: 4096  # an answer cut off at max_tokens is asked again once with this limit (long pages, big tables)
+  max_retries: 2
+  timeout_s: 300

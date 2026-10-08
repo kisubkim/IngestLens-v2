@@ -1,0 +1,30 @@
+# 오프라인 배포용 모델 주소. <...> 부분을 실제 값으로 바꾼다.
+# 모델 서버나 vLLM이 앱과 같은 서버의 호스트에서 돌면 host.docker.internal, 다른 서버면 그 IP를 쓴다.
+# base_url 을 비우면 그 기능은 대체 동작한다(VLM 없음 → PDF 텍스트만, 임베딩 없음 → 테스트용 dev-hash).
+
+embedding:
+  base_url: http://host.docker.internal:8090/v1    # model-server.sh 로 띄운 모델 서버
+  api_key: EMPTY                                   # model-server.env 의 API_KEY 를 정했다면 같은 값
+  model: bge-m3                                    # model-server.env 의 EMBED_NAME 과 같아야 한다
+  dim: 1024
+  max_tokens: 8192
+  batch_size: 32
+
+reranker:
+  base_url: http://host.docker.internal:8090/v1    # 같은 모델 서버
+  api_key: EMPTY
+  model: bge-reranker-v2-m3                        # model-server.env 의 RERANK_NAME 과 같아야 한다
+  timeout_s: 60
+
+vlm:
+  base_url: http://<VLM 서버 주소>:<포트>/v1        # 이미 운영 중인 vLLM (예: Qwen3-VL)
+  api_key: EMPTY                                   # 그 vLLM 에 --api-key 를 주었다면 같은 값
+  model: <vLLM 의 --served-model-name>             # curl http://<VLM 서버>/v1/models 로 확인
+  max_concurrency: 4      # VLM 서버를 다른 서비스와 나눠 쓰면 낮춘다
+  render_dpi: 150
+  crop_dpi: 170
+  image_format: jpeg
+  max_tokens: 2048
+  max_tokens_retry: 4096  # an answer cut off at max_tokens is asked again once with this limit (long pages, big tables)
+  max_retries: 2
+  timeout_s: 180

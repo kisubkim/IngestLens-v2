@@ -1,0 +1,172 @@
+{
+  "documents": [
+    {
+      "file": "manual.pdf",
+      "queries": [
+        {
+          "q": "냉각수 온도 유지 범위",
+          "pages": [
+            1
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "쿨링 워터를 몇 도로 관리해야 하나",
+          "pages": [
+            1
+          ],
+          "kind": "paraphrase"
+        },
+        {
+          "q": "UPS 정전 유지 시간",
+          "pages": [
+            2
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "전기가 끊겼을 때 장비가 버티는 시간",
+          "pages": [
+            2
+          ],
+          "kind": "paraphrase"
+        },
+        {
+          "q": "리크 테스트 주기",
+          "pages": [
+            3
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "누설 검사는 언제 하나",
+          "pages": [
+            3
+          ],
+          "kind": "paraphrase"
+        },
+        {
+          "q": "N2 가스 순도 기준",
+          "pages": [
+            4
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "비상 정지 버튼 위치",
+          "pages": [
+            5
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "작업자가 입어야 하는 보호 장비",
+          "pages": [
+            5
+          ],
+          "kind": "paraphrase"
+        },
+        {
+          "q": "E-305 알람 의미",
+          "pages": [
+            6
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "배기 필터 교체 주기",
+          "pages": [
+            7
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "센서 데이터 수집 간격",
+          "pages": [
+            8
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "측정값은 어디에 저장되나",
+          "pages": [
+            8
+          ],
+          "kind": "paraphrase"
+        },
+        {
+          "q": "2분기 가동률",
+          "pages": [
+            9
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "가동률이 가장 낮은 분기와 이유",
+          "pages": [
+            9
+          ],
+          "kind": "paraphrase"
+        },
+        {
+          "q": "냉각 계통도 그림",
+          "pages": [
+            12
+          ],
+          "kind": "lexical"
+        }
+      ]
+    },
+    {
+      "file": "deck.pptx",
+      "queries": [
+        {
+          "q": "3월 생산량",
+          "pages": [
+            2
+          ],
+          "kind": "lexical"
+        },
+        {
+          "q": "발표에서 배경을 설명하는 슬라이드",
+          "pages": [
+            1
+          ],
+          "kind": "paraphrase"
+        },
+        {
+          "q": "압력 점검 결과",
+          "pages": [
+            3
+          ],
+          "kind": "lexical"
+        }
+      ]
+    },
+    {
+      "file": "guide.docx",
+      "queries": [
+        {
+          "q": "온도 점검 주기와 기준",
+          "text": "25±2",
+          "kind": "lexical"
+        },
+        {
+          "q": "설치 전에 준비할 것",
+          "text": "전원 케이블",
+          "kind": "paraphrase"
+        }
+      ]
+    },
+    {
+      "file": "sheet.xlsx",
+      "queries": [
+        {
+          "q": "장비별 평균 온도 요약",
+          "text": "평균 온도",
+          "kind": "lexical"
+        }
+      ]
+    }
+  ]
+}
