@@ -9,6 +9,18 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 
 현재 상태: M1–M6 구현 완료. 로컬 GPU의 실제 모델(Ollama `qwen2.5vl:7b`, `bge-m3`, reranker 모델 서버)과 Open WebUI 연동까지 검증했다. 운영 vLLM과 큰 모델로는 아직 검증하지 않았다(`docs/HANDOFF.md` 1절).
 
+## 시작하기
+
+| 어디서 | 가이드 | 요약 |
+|---|---|---|
+| **Windows PC** | **`docs/WINDOWS.md`** | `setup_local.bat`(처음 한 번) → `start_local.bat` → http://localhost:8000. 실제 모델은 Windows용 Ollama로 연결 |
+| Windows PC, 모델까지 Docker로 | `docs/WINDOWS.md` 7절 | WSL2의 Docker Engine으로 `start_test.bat` |
+| 인터넷 없는 리눅스 서버 | **`deploy/README.md`** | 배포 묶음 파일 하나로 `./install.sh`(Docker) 또는 `./singularity.sh start` |
+| Linux·macOS 개발 PC | 아래 "실행 (개발)" | 두 저장소를 받아 venv로 실행 |
+| Open WebUI 연동 | `deploy/OPENWEBUI.md` | 문서 로더, 쪽 이미지 필터 |
+
+## 문서
+
 - 계획: `docs/PLAN.md`
 - 이어서 작업할 때 필요한 내용(상태, 반입 절차, 백로그, 함정): **`docs/HANDOFF.md`**
 - 평가와 튜닝: `evals/README.md`
@@ -16,23 +28,25 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 
 ## 실행 (개발)
 
+Windows에서는 `setup_local.bat`, `start_local.bat`, `stop_local.bat`이 아래 과정을 대신한다(`docs/WINDOWS.md`). 직접 하려면 Python 3.12와 Node.js로 다음처럼 한다. 경로는 Linux·macOS 기준이고, Windows에서는 `.venv/bin/`을 `.venv/Scripts/`로 바꾼다.
+
 ToolPDF를 이 저장소 옆(`../ToolPDF`)에 받아 두고 먼저 띄운다. 설치와 실행은 ToolPDF의 README를 따른다.
 
 ```bash
 git clone https://github.com/kisubkim/ToolPDF ../ToolPDF
-cd ../ToolPDF && python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
-.venv/Scripts/python -m uvicorn toolpdf.server:app --port 8095        # 다른 터미널에서 계속 띄워 둔다
+cd ../ToolPDF && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m uvicorn toolpdf.server:app --port 8095        # 다른 터미널에서 계속 띄워 둔다
 ```
 
 그다음 이 저장소에서 실행한다.
 
 ```bash
-python -m venv .venv
-.venv/Scripts/pip install -r backend/requirements-dev.txt
-cd frontend && npm install && npm run build && cd ..
+python3.12 -m venv .venv
+.venv/bin/pip install -r backend/requirements-dev.txt
+cd frontend && npm ci && npm run build && cd ..
 
 cd backend
-../.venv/Scripts/python -m uvicorn app.main:app --port 8000   # http://localhost:8000 (UI 포함)
+../.venv/bin/python -m uvicorn app.main:app --port 8000   # http://localhost:8000 (UI 포함)
 ```
 
 UI 개발: `cd frontend && npm run dev`. `/api`는 `127.0.0.1:8000`으로 proxy된다.
@@ -66,7 +80,7 @@ ToolPDF를 다른 주소에 띄웠으면 `RAG_TOOLPDF_URL`을 정한다. 기본�
   - 임베딩: dev-hash embedder를 쓴다. 검색 품질은 의미가 없다.
   - reranker(선택): 검색 화면의 rerank 옵션이 비활성화된다. vLLM `/v1/rerank`를 사용한다.
 - `config/strategy_rules.yaml`: 페이지 분류 규칙, 파서 매핑, 청킹 파라미터, 파싱 단위와 병렬도(`parse.window_pages`, `parse.windows_in_flight`), 그림/캡션/표 재추출 기준, Office 변환 방식(`office`).
-- 환경 변수(`RAG_` prefix, `.env` 파일도 가능):
+- 환경 변수(`RAG_` prefix, 저장소 폴더의 `.env` 파일도 가능). 경로 설정(`RAG_DATA_DIR`, `RAG_MODELS_FILE`)에 상대 경로를 쓰면 저장소 폴더 기준이다. 서버를 어느 폴더에서 띄웠는지와 상관없다.
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
@@ -77,7 +91,7 @@ ToolPDF를 다른 주소에 띄웠으면 `RAG_TOOLPDF_URL`을 정한다. 기본�
 | `RAG_TOOLPDF_API_KEY` | 없음 | ToolPDF에 `TOOLPDF_API_KEY`를 정했으면 같은 값 |
 | `RAG_TOOLPDF_TRANSFER` | `http` | 파일을 넘기는 방식. `http`: 파일을 올린다(sha256로 한 번만). `shared`: ToolPDF가 이 앱의 데이터 폴더를 `TOOLPDF_SHARED_ROOT`로 마운트하고 상대 경로로 주고받는다(Docker 스택과 배포 묶음). 데이터 폴더 밖의 파일은 어느 방식이든 올린다 |
 | `RAG_TOOLPDF_TIMEOUT_S` | `600` | ToolPDF 요청 한 건의 제한 시간(초) |
-| `RAG_MODELS_FILE` | `config/models.yaml` | 다른 모델 설정 파일을 쓸 때 (예: mock 서버용) |
+| `RAG_MODELS_FILE` | `config/models.yaml` | 다른 모델 설정 파일을 쓸 때. 예: `config/models.windows.yaml`(Windows용 Ollama), mock 서버용 사본 |
 | `RAG_API_KEY` | 없음 | 수집 API(`/api/ingest`, `/api/openwebui/process`)와 저장 위치 변경의 Bearer 키. 비어 있으면 수집 API는 인증하지 않고, 저장 위치 변경은 서버 PC에서 접속했을 때만 허용한다. 그 밖의 화면용 API에는 적용하지 않는다 |
 | `RAG_SETTINGS_FILE` | `config/settings.local.yaml` | 저장 위치 설정 화면이 쓰는 파일. git에 올라가지 않는다 |
 | `RAG_INGEST_WAIT_SECONDS` | `3600` | Open WebUI 로더가 실행 완료를 기다리는 최대 시간. 넘으면 504를 돌려준다 |

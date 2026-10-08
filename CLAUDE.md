@@ -27,7 +27,9 @@ This app contains no PDF library. Every PDF operation (normalizing documents to 
 
 ## Commands
 
-First-time setup (from the repo root): `python -m venv .venv`, `.venv/Scripts/pip install -r backend/requirements-dev.txt`, then `npm install && npm run build` in `frontend/`.
+First-time setup (from the repo root): `python -m venv .venv`, `.venv/Scripts/pip install -r backend/requirements-dev.txt`, then `npm install && npm run build` in `frontend/`. On Windows, `setup_local.bat` does this for both repositories (cloning ToolPDF if missing), `start_local.bat` runs ToolPDF and the app in one window each (`INGESTLENS_PORT`, `TOOLPDF_PORT`, `INGESTLENS_HOST`, `TOOLPDF_DIR`), and `stop_local.bat` stops them by command line. `docs/WINDOWS.md` is the end-user guide for a Windows PC; keep it in step with these scripts. In this tool environment run bat files as `.\name.bat` from PowerShell (the current folder is not searched), and through `Start-Process -WindowStyle Hidden` because the child windows keep the output pipe open.
+
+Relative paths in `RAG_DATA_DIR`, `RAG_MODELS_FILE` (and the rules/evals paths) resolve against the repository root, not the working directory (`config.py`).
 
 Run backend commands from `backend/` with the repo venv. Tests need ToolPDF: `tests/conftest.py` starts it from `TOOLPDF_HOME` (default: a `ToolPDF` folder with its own `.venv` next to this repository) on a free port, or uses a running one when `RAG_TOOLPDF_URL` is set.
 

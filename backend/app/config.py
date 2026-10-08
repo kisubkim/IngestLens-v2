@@ -3,6 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import yaml
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, YamlConfigSettingsSource
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,6 +30,14 @@ class Settings(BaseSettings):
     data_dir_hint: str = ""  # shown when data_dir is locked, e.g. how the Docker volume decides the data folder
     ingest_wait_seconds: float = 3600  # how long the Open WebUI loader waits for a run before giving up
     evals_dir: Path = ROOT / "evals" / "results"  # result files of scripts/eval_*.py shown by the comparison screen
+
+    @field_validator("data_dir", "models_file", "rules_file", "evals_dir")
+    @classmethod
+    def _from_repo_root(cls, v: Path) -> Path:
+        """Relative paths (e.g. RAG_MODELS_FILE=config/models.windows.yaml in .env) are taken from the repository root,
+        not from the folder the server happens to start in. The settings screen does the same for data_dir."""
+        v = Path(v).expanduser()
+        return v if v.is_absolute() else ROOT / v
 
     @classmethod
     def settings_customise_sources(

@@ -11,6 +11,7 @@
 - 10-08 밤: Docker Desktop을 지우고 WSL Ubuntu의 Docker Engine으로 이전
 - 10-08: Open WebUI 답변과 출처 팝업에 쪽 이미지 보여주기, 가로 문서 시험, 화면의 Open WebUI 파일 이름 정리, 앱 sif `20261008`(실제 모델로 동작 확인)
 - 10-08~09: PDF 처리를 모두 PDF 엔진 ToolPDF(별도 프로그램, HTTP API)로, 라이선스 MIT, 배포 묶음에 ToolPDF 포함
+- 10-09: Windows PC 가이드(`docs/WINDOWS.md`)와 Docker 없는 실행 스크립트(`setup_local.bat`, `start_local.bat`, `stop_local.bat`)
 
 ## 1. 한눈에 보기
 
@@ -283,6 +284,14 @@
   - `singularity.sh`에 `start-pdf`/`stop pdf`/`logs pdf`. `start`는 ToolPDF → 모델 서버 → 앱 순서. Singularity는 호스트 네트워크라 ToolPDF 포트가 열리므로 묶음의 `singularity.env`에 임의의 `TOOLPDF_API_KEY`를 넣는다.
 - 확인(10-09): 묶음 376MB. WSL의 Docker Engine에서 묶음만으로 설치해 상태의 PDF 엔진 정상, PDF 6쪽과 pptx 4장 처리 성공. Singularity 묶음과 오프라인 서버는 아직.
 - 문서 정리: README, HANDOFF, PLAN, evals/README, deploy 문서를 ToolPDF 구조에 맞췄다. 평가 세트는 저장소에 커밋된 파일이 기준이다.
+
+### 2-23. Windows PC에서 Docker 없이 실행 (10-09)
+
+- `docs/WINDOWS.md`: 일반 Windows PC용 가이드. 준비물, 받기, 설치, 실행, 확인, 중지, Windows용 Ollama로 실제 모델 연결, reranker, 다른 PC에서 접속, 설정, LibreOffice, Docker 스택, 업데이트, 문제 해결. README 맨 앞에 "시작하기" 표를 두어 Windows PC, Docker, 오프라인 서버 가이드로 나눴다.
+- `setup_local.bat`: ToolPDF가 없으면 받고(git), 두 저장소의 `.venv`와 패키지, 화면 빌드. 다시 실행해도 된다.
+- `start_local.bat`: 앱 포트가 비었는지 먼저 보고, ToolPDF와 앱을 창 하나씩 띄워 응답을 기다린 뒤 브라우저를 연다. 포트, 받을 주소, ToolPDF 위치를 환경 변수로 바꾼다. `stop_local.bat`: 실행 명령으로 두 서버를 찾아 창째 끈다.
+- `config/models.windows.yaml`: Windows용 Ollama(127.0.0.1:11434) 템플릿. `.env`에 `RAG_MODELS_FILE=config/models.windows.yaml` 한 줄로 쓴다. 이를 위해 경로 설정의 상대 경로를 저장소 폴더 기준으로 바꿨다(`config.py`).
+- 확인: 세 스크립트를 이 PC에서 실행. 설치와 화면 빌드, 시작 약 9초, 포트 충돌 검사(ToolPDF를 띄우지 않고 멈춤), 중지 후 포트 해제. Docker의 Ollama(`qwen2.5vl:7b`, `bge-m3`)와 reranker에 연결해 sample.pdf 6쪽을 VLM OCR·그림 설명까지 처리하고 hybrid+rerank 검색. Windows용 Ollama 자체로의 연결은 이 PC의 Ollama에 모델이 없어 시험하지 못했다. 테스트 61개 통과.
 
 ### 2-19. 기타 (10-05~07)
 

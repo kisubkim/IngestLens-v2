@@ -57,16 +57,17 @@ IngestLens-v2/
     models.py   Document, Run, Event, Decision, PageProfile, Element, Chunk
     events.py   emit_event / record_decision + SSE fan-out
   backend/tests/   pytest 61개 (conftest가 ToolPDF를 띄움, fixtures/sample.pdf, minipdf.py로 만드는 작은 PDF, office_fixtures)
-  config/     models.yaml (모델 endpoint 템플릿), models.docker.yaml (Docker 스택용), strategy_rules.yaml (모든 규칙과 파라미터)
+  config/     models.yaml (모델 endpoint 템플릿), models.docker.yaml (Docker 스택용), models.docker-host.yaml (호스트에서 Docker 스택의 모델 쓰기), models.windows.yaml (Windows용 Ollama), strategy_rules.yaml (모든 규칙과 파라미터)
   docker/     app.Dockerfile, model-server/ (임베딩+rerank 모델 서버: server.py, 개발용 Dockerfile, 운영용 release.Dockerfile), certs/ (추가 신뢰 CA)
   docker-compose.yml   로컬 검증 스택: app + ToolPDF(../ToolPDF에서 빌드) + Ollama + reranker(모델 서버, CPU)
   deploy/     오프라인 서버용: docker-compose.yml(app + ToolPDF), models.yaml, install.sh, model-server.sh, singularity.sh, README.md(설치), OPENWEBUI.md(연동), openwebui_page_images.py(Open WebUI 쪽 이미지 필터)
+  setup_local.bat, start_local.bat, stop_local.bat   Windows PC에서 Docker 없이 준비·실행·중지 (ToolPDF와 앱을 창 하나씩, docs/WINDOWS.md)
   start_test.bat/.sh, stop_test.bat/.sh   로컬 Docker 스택 시작·중지 (Windows는 WSL의 Docker Engine, 3-1)
   PROGRESS.md 날짜별 진행 기록
   frontend/   React + Vite. build 결과물 dist/는 FastAPI가 / 경로로 서빙
   scripts/    mock_vllm, bench_large, eval_profile, eval_retrieval, eval_vlm, build_offline_bundle, _inproc(평가 스크립트 공용)
   evals/      synthetic/ (합성 평가 세트), vlm/ (합성 VLM 평가 세트), samples/ (실제 공개 문서 10종, 출처는 SOURCES.md), reports/ (측정 보고서), results/vlm/ (VLM 평가 결과 JSON, 화면에서 비교), README.md
-  docs/       PLAN.md, HANDOFF.md (이 문서), EMBEDDING_MODELS.md (임베딩 모델 후보와 교체 방법)
+  docs/       PLAN.md, HANDOFF.md (이 문서), WINDOWS.md (Windows PC 설치·실행 가이드), EMBEDDING_MODELS.md (임베딩 모델 후보와 교체 방법)
 ../ToolPDF/   PDF 엔진(별도 저장소, AGPL-3.0). 테스트, Docker 스택, 배포 묶음이 이 위치를 기본으로 찾는다
 ```
 
@@ -75,6 +76,8 @@ IngestLens-v2/
 ## 3. 새 환경에서 시작하기
 
 ### 3-1. 개발 PC (인터넷 가능)
+
+**Windows PC에서 쓰기만 할 때**는 `docs/WINDOWS.md`를 따른다. `setup_local.bat` → `start_local.bat`이면 된다. 아래는 개발 환경이다.
 
 ToolPDF를 이 저장소 옆에 준비한다. 테스트는 그 폴더의 `.venv`로 ToolPDF를 직접 띄운다(`TOOLPDF_HOME`으로 위치를 바꿀 수 있다).
 
@@ -362,6 +365,10 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - **WSL의 Docker Engine은 세션이 없으면 배포판째 꺼진다**: `wsl ... -- docker ...` 명령이 끝나고 잠시 뒤 Ubuntu가 꺼지면서 컨테이너도 정상 종료(코드 0)된다. `.wslconfig`의 `[general] instanceIdleTimeout=-1`로 막는다(3-1). Docker Desktop은 자기 VM을 계속 켜 두므로 이 문제가 없었다.
 - **Docker Desktop에서 옮긴 볼륨은 Compose 표시(label)가 없으면 경고가 난다**: `volume ... already exists but was not created by Docker Compose`. 볼륨을 만들 때 `--label com.docker.compose.project=ingestlens --label com.docker.compose.volume=<이름>`을 붙인다.
 - **Git Bash에서 bat을 실행하면 `timeout`이 Git Bash의 것으로 바뀐다**: `timeout /t`가 `invalid time interval`로 실패한다. `start_test.bat`은 `%SystemRoot%\System32\timeout.exe`를 직접 부른다.
+- **`timeout.exe`는 표준 입력이 리디렉션되면 기다리지 않고 바로 끝난다**(`Input redirection is not supported`). 그러면 대기 루프가 순식간에 끝나 "응답 없음"으로 실패할 수 있다. `start_local.bat`은 어디서나 기다리는 `ping -n 2 127.0.0.1 >nul`을 쓴다.
+- **bat의 `if (...)` 블록 안 `echo`에 괄호를 쓰지 않는다**: `)`가 블록 끝으로 읽힌다. 블록 밖으로 빼거나 `^)`로 쓴다.
+- **`start "제목" cmd /k ...`로 띄운 창은 화면이 없는 환경에서 제목이 비어 있다**: 그래서 `stop_local.bat`은 창 제목이 아니라 실행 명령(`.venv`의 python으로 띄운 `uvicorn app.main:app`, `uvicorn toolpdf.server:app`)으로 찾아 부모 cmd째 `taskkill /t`로 끈다.
+- **경로 설정의 상대 경로는 저장소 폴더 기준이다**(`config.py` `_from_repo_root`): 예전에는 서버를 띄운 폴더(`backend/`) 기준이라 `.env`의 `RAG_MODELS_FILE=config/...`가 파일을 찾지 못했다.
 - **새 Ollama 이미지는 받은 모델을 새 형식으로 다시 받는다**: 예전 사본이 `llamacpp:<id>` 이름으로 남아 6GB가 두 벌이 됐다. `ollama list`로 보고 `ollama rm`으로 지운다.
 - **배포용 compose의 프로젝트 이름은 `ingestlens-server`다**: 개발용 `docker-compose.yml`(프로젝트 `ingestlens`)과 같은 이름이면 한쪽을 `up`/`down`할 때 다른 쪽 컨테이너와 네트워크를 바꾸거나 지운다. 실제로 시험 중에 개발용 앱 컨테이너가 교체됐다.
 - **빌드 PC의 추가 인증서(`docker/certs/*.crt`)는 이미지에 남지 않는다**: Dockerfile이 `RUN --mount=type=bind`로 패키지를 받는 동안만 쓴다. 그래서 개발용과 배포용 이미지를 따로 빌드하지 않는다.

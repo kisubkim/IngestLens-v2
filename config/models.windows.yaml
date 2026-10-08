@@ -1,0 +1,32 @@
+# Windows PC 에서 Windows용 Ollama(https://ollama.com)로 실제 모델을 쓸 때의 설정 (docs/WINDOWS.md 3절).
+# 쓰는 법: 저장소 폴더의 .env 에 RAG_MODELS_FILE=config/models.windows.yaml 을 적고 앱을 다시 시작한다.
+# 먼저 받아 둘 모델:  ollama pull qwen2.5vl:7b   ollama pull bge-m3
+# 주소는 localhost 대신 127.0.0.1 로 쓴다(Windows 에서 localhost 는 요청마다 약 2초 늦다).
+# Ollama 에는 /tokenize 가 없어서 chars_per_token 은 기본값(2.5)을 쓴다. 이 사실은 결정 기록에 남는다.
+
+embedding:
+  base_url: http://127.0.0.1:11434/v1
+  api_key: ollama
+  model: bge-m3
+  dim: 1024
+  max_tokens: 8192
+  batch_size: 16
+
+reranker:
+  base_url: ""              # 선택. Ollama 에는 rerank 가 없다. 모델 서버를 띄웠으면 http://127.0.0.1:8081 (docs/WINDOWS.md 3-3)
+  api_key: EMPTY
+  model: BAAI/bge-reranker-v2-m3
+  timeout_s: 60
+
+vlm:
+  base_url: http://127.0.0.1:11434/v1
+  api_key: ollama
+  model: qwen2.5vl:7b       # GPU 메모리가 8GB 미만이면 qwen2.5vl:3b (비상업 라이선스, NOTICE.md 5절)
+  max_concurrency: 2        # Ollama 의 OLLAMA_NUM_PARALLEL 과 맞춘다
+  render_dpi: 150
+  crop_dpi: 170
+  image_format: jpeg
+  max_tokens: 2048
+  max_tokens_retry: 4096    # 잘린 답을 한 번 더 요청할 때의 한도. Ollama 는 OLLAMA_CONTEXT_LENGTH 도 넉넉히(12288)
+  max_retries: 2
+  timeout_s: 300
