@@ -92,4 +92,4 @@ Other configuration (`RAG_` env vars or `.env`): `RAG_DATA_DIR` (default `./data
 - Code and tests (61, both transfer modes) work against ToolPDF; the Docker stack runs with ToolPDF in shared-folder mode.
 - License is MIT; `NOTICE.md` explains ToolPDF (AGPL-3.0) as a separate program. Docs must not describe this repository as derived from another IngestLens repository.
 - Docs describe the ToolPDF structure. The Docker bundle with ToolPDF installed and processed documents from the bundle alone (WSL Docker, 2026-10-09); the Singularity bundle and the offline server are not tested yet.
-- Not yet committed. GitHub repository: `https://github.com/kisubkim/IngestLens-v2` (public, empty, `main`); no remote is configured locally yet. Next: the first commit and push.
+- First commit pushed to `https://github.com/kisubkim/IngestLens-v2` (`origin/main`, public, MIT). Next: test the Singularity bundle and the bundle on the offline server (`docs/HANDOFF.md` §6).
