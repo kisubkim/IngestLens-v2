@@ -350,6 +350,7 @@ export interface RuleField {
   max?: number;
   step?: number;
   choices?: string[];
+  nullable?: boolean;
 }
 export interface ProfilerRule {
   id: string;

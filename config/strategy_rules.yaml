@@ -68,8 +68,32 @@ parse:
     max_empty_cell_ratio: 0.5   # worse than this -> re-extract with the VLM
   relabel_chart_min_area: 0.3   # a chart covering this share of a diagram/image page relabels the page
 
+# Options handed to the PDF engine (ToolPDF >= 0.2.0 "options"; docs/AGENTS.md). Defaults equal the engine's own,
+# so leaving them changes nothing. The same table options go to page profiling and to extraction, so both steps
+# see the same tables. An engine without option support gets the old request and the run records that.
+engine:
+  tables:
+    enabled: true
+    strategy: lines             # lines | lines_strict | text (text also finds tables without ruling lines)
+    vertical_strategy: null     # null = same as strategy
+    horizontal_strategy: null
+    snap_tolerance: 3
+    join_tolerance: 3
+    edge_min_length: 3
+    intersection_tolerance: 3
+    text_tolerance: 3
+    min_words_vertical: 3
+    min_words_horizontal: 1
+    markdown_clean: false
+    markdown_fill_empty: true
+  image:
+    jpeg_quality: 85
+    colorspace: rgb             # rgb | gray (crops sent to the VLM)
+    annots: true                # draw PDF annotations (notes, highlights, form fields)
+    crop_pad: 6                 # margin (pt) around table and figure crops
+
 office:
-  prefer: libreoffice       # libreoffice | native. native = python-docx/pptx/openpyxl rendering, no LibreOffice needed
+  prefer: libreoffice      # libreoffice | native. native = python-docx/pptx/openpyxl rendering, no LibreOffice needed
   xlsx: native              # spreadsheets: native keeps every table readable; LibreOffice cuts wide sheets across pages
   xlsx_rows_per_page: 24    # rows per rendered table page (header repeated on each)
   xlsx_max_rows: 5000       # per sheet; larger sheets are truncated and the decision says so

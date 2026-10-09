@@ -27,7 +27,7 @@ def test_every_field_belongs_to_an_agent_and_exists_in_the_shipped_rules():
     agents = {a["key"] for a in rules_schema.AGENTS}
     for f in rules_schema.FIELDS:
         assert f["agent"] in agents
-        assert rules_schema.get(rules_base(), f["path"]) is not None, f["path"]
+        assert rules_schema.get(rules_base(), f["path"], rules_schema.MISSING) is not rules_schema.MISSING, f["path"]
 
 
 def test_change_applies_at_once_and_stores_only_the_change():

@@ -146,6 +146,20 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 
 **VLM 부하:** 모든 실행이 공유하는 동시 호출 상한(`models.yaml` `vlm.max_concurrency`)이 있다. VLM 호출이 실패해도 그 쪽만 대체하고 실행은 계속한다.
 
+### 5-1. PDF 엔진 옵션 (표 찾기, 이미지)
+
+②와 ④가 ToolPDF에 요청할 때 함께 보내는 옵션이다(ToolPDF 0.2.0 이상, 규칙 `engine`). 기본값은 엔진 기본값과 같아서 바꾸지 않으면 동작이 그대로다.
+
+| 묶음 | 주요 값 (기본) | 쓰는 곳 | 뜻 |
+|---|---|---|---|
+| `engine.tables` | `strategy: lines`, 허용 거리들 3pt, `min_words_vertical: 3`, `min_words_horizontal: 1`, `enabled: true` | ② 쪽 특징의 표 수, ④ 표 추출 | 표 찾기 방식. `text`로 바꾸면 괘선 없는 표(논문 스타일)도 표로 잡는다. 대신 정렬된 본문을 표로 잘못 볼 수 있다. 열·행 방식을 따로 정할 수 있다 |
+| `engine.image` | `jpeg_quality: 85`, `colorspace: rgb`, `annots: true`, `crop_pad: 6` | ④ VLM용 잘라낸 이미지, 화면·썸네일 쪽 이미지(품질·주석만) | `gray`는 VLM에 보내는 이미지를 흑백으로 만들어 전송량을 줄인다 |
+
+- 같은 표 옵션을 ②와 ④에 함께 보내, 쪽 분류가 본 표와 추출한 표가 같다.
+- 표 재추출 기준(`parse.tables.max_empty_cell_ratio`)과 VLM 이미지 해상도·형식(`models.yaml` `vlm`)도 옵션 안에 넣어 보낸다.
+- 엔진이 옵션을 모르면(0.1.x) 예전 요청을 보내고 근거에 `engine_options_unsupported`를 남긴다. 규칙의 엔진 옵션을 바꿔 두었다면 적용되지 않았다는 뜻이다. 상태 화면의 PDF 엔진도 "주의"로 보인다.
+- 암호 PDF(`options.document.password`)는 문서마다 비밀번호가 필요해 아직 쓰지 않는다. 암호 PDF는 처리하지 않는다.
+
 ## 6. ⑤ chunk: 청크 나누기
 
 **하는 일.** ④가 만든 요소를 ③이 정한 전략과 크기로 묶는다(`backend/app/tools/chunking.py`).
@@ -206,6 +220,7 @@ VLM에 보내는 질문 형식(프롬프트)과 그 답을 읽는 규칙은 `bac
 | `vlm_truncated_retry` | parse | 잘린 답 다시 요청 |
 | `table_empty_cells` | parse | 표를 VLM으로 다시 읽음 |
 | `vlm_figure_type` | parse | 큰 차트로 쪽을 chart로 다시 분류 |
+| `engine_options`, `engine_options_unsupported` | profile | PDF 엔진에 보낸 표·이미지 옵션(엔진 버전 포함), 또는 옛 엔진이라 보내지 못함 |
 | `figure_regions` | parse | 그림 설명 결과 요약 |
 | `chunk_merge` | chunk | 짧은 청크 합치기 |
 | `configured_endpoint`, `embedding_not_configured` | embed | 임베딩 모델 |
@@ -220,7 +235,7 @@ VLM에 보내는 질문 형식(프롬프트)과 그 답을 읽는 규칙은 `bac
   - 왼쪽 아래 **"에이전트 규칙"** 버튼
   - 실행 화면 위쪽의 **단계 상자**(형식 판별, 콘텐츠 분석, 전략 결정, 파싱, 청킹, 임베딩)를 누르면 그 단계의 탭이 열린다
   - 근거 상세의 **"이 단계 규칙 보기·바꾸기"**
-  - 주소로 바로: `/#rules/profile`, `/#rules/parse`, `/#rules/chunk` 등
+  - 주소로 바로: `/#rules/profile`, `/#rules/parse`, `/#rules/chunk`, `/#rules/engine`(PDF 엔진 옵션) 등
 - **화면:** 에이전트별 탭에 그 단계가 쓰는 값이 설명, 기본값, 허용 범위와 함께 나온다. 기본값과 다른 값에는 "바꿈" 표시가, 탭에는 점이 붙는다. 쪽 분류 규칙은 표에서 조건을 고치고, 규칙을 추가·삭제·순서 변경한다(위에서부터 처음 맞는 규칙이 쓰이므로 순서가 중요하다).
 - **저장하고 적용:** 서버가 값을 검사한다(종류, 범위, 선택지, 정규식, 겹침 ≤ 청크 크기의 1/4, 최소 크기 ≤ 1/2, 깨진 글자). 문제가 있으면 무엇을 고칠지 보여 주고 저장하지 않는다. 저장하면 다음에 시작하는 실행부터 새 값으로 판단한다. 문서를 열어 둔 채 들어왔으면 저장 뒤 그 문서를 **바로 다시 실행**하는 버튼이 나온다.
 - **되돌리기:** 항목별 "기본값으로", 탭별 "이 단계 값 모두 기본값으로", 전체 "모두 기본값으로".

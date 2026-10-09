@@ -25,6 +25,7 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 - 계획: `docs/PLAN.md`
 - 이어서 작업할 때 필요한 내용(상태, 반입 절차, 백로그, 함정): **`docs/HANDOFF.md`**
 - 에이전트 구성과 판단 기준(각 단계가 무엇을 어떤 규칙으로 정하는지): **`docs/AGENTS.md`**
+- PDF 엔진 인터페이스와 MIT 내장 엔진 계획(ToolPDF 없이 쓰기): `docs/ENGINE_PLAN.md`
 - 평가와 튜닝: `evals/README.md`
 - 라이선스: MIT (`LICENSE`). PDF 엔진 ToolPDF(AGPL-3.0, 별도 프로그램), 의존성, 모델의 라이선스는 `NOTICE.md`
 

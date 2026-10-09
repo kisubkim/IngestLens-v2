@@ -11,7 +11,7 @@ const ACCEPT_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", "
 
 type Panel = "doc" | "settings" | "evals" | "status" | "rules";
 const HASH_PANELS = ["#evals", "#settings", "#status", "#rules"];
-const AGENT_KEYS = ["intake", "profile", "strategy", "parse", "chunk", "embed"];
+const AGENT_KEYS = ["intake", "profile", "strategy", "parse", "chunk", "embed", "engine"];
 
 /** "#rules/parse" opens the rules screen on that agent's tab; "#rules" on the profiler. */
 function hashState(): { panel: Panel; agent: string } {

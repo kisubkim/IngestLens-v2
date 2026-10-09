@@ -7,12 +7,12 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from ..config import rules_cfg
+from ..config import rules_base, rules_cfg
 from ..db import session
 from ..events import emit_event, record_decision
 from ..models import PageProfile
 from ..tools.pdf import classify
-from ..tools.toolpdf import engine
+from ..tools.toolpdf import engine, engine_rules
 from ..tools.vlm import VLMClient
 from .common import PipelineState, update_summary
 
@@ -62,10 +62,32 @@ async def _vlm_review(run_id: str, pdf_path: str, pages: list[tuple[int, str, fl
     await asyncio.gather(*(review(*p) for p in pages))
 
 
+def _record_engine_options(run_id: str) -> None:
+    """Which table and image options the PDF engine got (they shape table counts here and extraction later)."""
+    support = engine().option_support()
+    chosen = engine_rules()
+    tables = chosen.get("tables") or {}
+    if support:
+        record_decision(run_id, STEP, "PDF engine options", f"tables: {tables.get('strategy')}"
+                        + ("" if tables.get("enabled", True) else " (off)"), rule_id="engine_options",
+                        inputs={"engine_version": support.get("version"), **chosen}, confidence=1.0,
+                        reasoning="Table and image options from the rules (engine.*) go to profiling and extraction, "
+                                  "so both steps see the same tables.")
+        return
+    custom = chosen != (rules_base().get("engine") or {})
+    record_decision(run_id, STEP, "PDF engine options", "engine defaults (options not supported)",
+                    rule_id="engine_options_unsupported", inputs={"wanted": chosen},
+                    alternatives=[{"choice": "rules engine.*", "reason_rejected": "the PDF engine is older than ToolPDF 0.2.0"}] if custom else [],
+                    confidence=0.5 if custom else 1.0,
+                    reasoning="The engine has no GET /v1/options, so requests are sent without options and it uses its own defaults."
+                              + (" The changed engine options in the rules are not applied; upgrade ToolPDF." if custom else ""))
+
+
 async def profile(state: PipelineState) -> dict:
     run_id, pdf_path, n = state["run_id"], state["pdf_path"], state["page_count"]
     rules = rules_cfg()["profiler"]
     batch = rules["batch_pages"]
+    await asyncio.to_thread(_record_engine_options, run_id)
 
     results: list[tuple[int, str, float]] = []
     for start in range(0, n, batch):

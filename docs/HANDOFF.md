@@ -31,7 +31,7 @@
 
 | 항목 | 검증 방법 | 실제 환경 검증 |
 |---|---|---|
-| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 78개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
+| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 83개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
 | PDF 엔진 ToolPDF | 테스트가 ToolPDF를 직접 띄움(`tests/conftest.py`), Docker 스택, Windows `start_local.bat` | ToolPDF를 넣은 묶음을 이 PC에서 Docker(`install.sh`)와 Apptainer(`singularity.sh start`)로 확인(10-09). 실제 오프라인 서버에서는 아직 |
 | Windows PC (Docker 없이) | `setup_local.bat`, `start_local.bat`, `stop_local.bat` | Windows용 Ollama 0.40.1(`qwen2.5vl:7b`, `bge-m3`)로 `docs/WINDOWS.md` 3절 순서 그대로 확인. 한국어 실제 스캔 OCR까지(10-09) |
 | VLM (OCR, 그림, 표, 분류) | 코드 mock, HTTP mock, **Ollama `qwen2.5vl:7b`** (Docker, 2026-10-04) | 실제 VL 모델로 응답 형식 확인: `TYPE:` 첫 줄, OCR 제목 분리, 차트 표, 분류 JSON 모두 동작. 합성 세트에서 7b 92%·3b 86%, 실제 공개 문서 10종에서 7b 92%·3b 51%(7절). **vLLM과 큰 모델로는 아직 안 함** |
@@ -58,7 +58,7 @@ IngestLens-v2/
     tools/      toolpdf(PDF 엔진 클라이언트, 유일한 연결 지점), pdf(쪽 분류 규칙), figures, office(형식 판별), vlm, vlm_output, vlm_checks, embedding, reranker, lexical, chunking, vectorstore, purge
     models.py   Document, Run, Event, Decision, PageProfile, Element, Chunk
     events.py   emit_event / record_decision + SSE fan-out
-  backend/tests/   pytest 78개 (conftest가 ToolPDF를 띄움, test_openwebui_filter는 Open WebUI 쪽 이미지 필터, fixtures/sample.pdf, minipdf.py로 만드는 작은 PDF, office_fixtures)
+  backend/tests/   pytest 83개 (conftest가 ToolPDF를 띄움, test_openwebui_filter는 Open WebUI 쪽 이미지 필터, fixtures/sample.pdf, minipdf.py로 만드는 작은 PDF, office_fixtures)
   config/     models.yaml (모델 endpoint 템플릿), models.docker.yaml (Docker 스택용), models.docker-host.yaml (호스트에서 Docker 스택의 모델 쓰기), models.windows.yaml (Windows용 Ollama), strategy_rules.yaml (모든 규칙과 파라미터)
   docker/     app.Dockerfile, model-server/ (임베딩+rerank 모델 서버: server.py, 개발용 Dockerfile, 운영용 release.Dockerfile), certs/ (추가 신뢰 CA)
   docker-compose.yml   로컬 검증 스택: app + ToolPDF(../ToolPDF에서 빌드) + Ollama + reranker(모델 서버, CPU)
@@ -93,8 +93,8 @@ git clone https://github.com/kisubkim/ToolPDF ../ToolPDF
 python -m venv .venv
 .venv/Scripts/pip install -r backend/requirements-dev.txt     # Linux: .venv/bin/pip
 cd frontend && npm install && npm run build && cd ..
-cd backend && ../.venv/Scripts/python -m pytest -q             # 78 passed 확인 (공유 폴더 방식)
-RAG_TOOLPDF_TRANSFER=http ../.venv/Scripts/python -m pytest -q # 78 passed 확인 (HTTP 방식)
+cd backend && ../.venv/Scripts/python -m pytest -q             # 83 passed 확인 (공유 폴더 방식)
+RAG_TOOLPDF_TRANSFER=http ../.venv/Scripts/python -m pytest -q # 83 passed 확인 (HTTP 방식)
 ../ToolPDF/.venv/Scripts/python -m uvicorn --app-dir ../ToolPDF toolpdf.server:app --port 8095 &   # 서버를 띄울 때는 ToolPDF 먼저
 ../.venv/Scripts/python -m uvicorn app.main:app --port 8000
 ```
@@ -279,7 +279,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 
 **P1: 품질**
 - [ ] 실제 공개 문서 10종 평가(2026-10-04, `qwen2.5vl:7b`)에서 모델과 상관없이 실패한 항목. 파이프라인 과제다:
-  - 선 없는 표(논문의 booktabs 스타일, Docling Table 1)를 표로 잡지 못하고 문단으로 나눈다. `pymupdf_tables` 파서(ToolPDF `extract`의 `text` 모드)의 표 찾기가 괘선 기준이라서다. 고치려면 ToolPDF 쪽 옵션이나 VLM 재추출 조건을 바꾼다.
+  - 선 없는 표(논문의 booktabs 스타일, Docling Table 1)를 표로 잡지 못하고 문단으로 나눈다. `pymupdf_tables` 파서(ToolPDF `extract`의 `text` 모드)의 표 찾기가 괘선 기준이라서다. 2026-10-10: ToolPDF 0.2.0의 표 찾기 옵션을 규칙 `engine.tables`로 연결해, `strategy: text`면 괘선 없는 표도 찾는다(`tests/test_engine_options.py`). 기본은 아직 `lines`다. 본문을 표로 잘못 보는 부작용이 있어 실제 문서(Docling 논문, 데이터시트)로 재 보고 기본값이나 문서 종류별 적용을 정한다.
   - 숫자가 빽빽한 스캔 표(NACA Table I)는 재시도 한도 4096에서도 잘린다. 이런 문서가 많으면 `vlm.max_tokens_retry`를 올리거나(Ollama는 `OLLAMA_CONTEXT_LENGTH`도 함께) 페이지를 나눠 OCR한다.
   - 국가데이터처 보도자료의 벡터 차트를 `diagram`으로 답했다(7b). 차트 위에 숫자 라벨이 많아서로 보인다.
 - [ ] `qwen2.5vl:3b`는 같은 토큰을 반복하다가 Ollama가 응답을 중단했다(`token repeat limit reached`, VLM 호출 47회 중 41회). 작은 모델을 쓸 거라면 `frequency_penalty`/`repeat_penalty`를 요청에 넣는 것을 검토한다.
@@ -289,6 +289,9 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [x] 짧은 청크 병합(2026-10-09): `strategy.min_tokens`(기본 128), 같은 절 안에서 다음(안 되면 앞) 청크와 합친다. 근거 `chunk_merge`. 권장 조합과 측정은 `deploy/OPENWEBUI.md` 4-4, 7절.
 - [ ] 짧은 청크의 임베딩 검색이 약하다. 합친 LIS3DH WHO_AM_I 청크(54토큰)도 한국어 질문에 dense 20위(BM25 1위)라 Open WebUI가 TOP_K 10에서도 못 가져왔다. 후보: 청크 임베딩에 문서 제목·절 경로를 붙여 넣기(contextual chunk), 질문을 문서 언어로 바꿔 한 번 더 검색, 절 단위로 짧은 절끼리 합치기.
 - [ ] 절의 첫 청크만 검색되고 정답이 두 번째 청크에 있는 경우(MPU-6000 I2C 주소 "b110100X"). 후보: 검색된 청크의 같은 절 이웃 청크를 함께 넘기기(Open WebUI 쪽에서는 어려우므로 IngestLens 검색 API 쪽).
+- [ ] PDF 엔진 인터페이스와 MIT 내장 엔진(ToolPDF 없이 쓰기): 계획 `docs/ENGINE_PLAN.md`. 8절의 결정이 먼저다.
+- [ ] 암호 PDF: ToolPDF 0.2.0이 `options.document.password`를 받지만 앱은 문서별 비밀번호를 받을 곳이 없어 아직 처리하지 않는다.
+- [ ] 배포 묶음에 ToolPDF 0.2.0 넣기: ToolPDF 저장소에서 0.2.0을 커밋하고 `docker/release.sh`로 배포 폴더를 다시 만든 뒤 묶음을 만든다. 지금 `release/toolpdf-0.1.0`으로 만든 묶음은 옵션을 못 쓴다(상태 화면 "주의").
 - [ ] 로컬 Docker 스택의 reranker는 CPU라 합친(커진) 청크 20개 rerank가 60초를 넘겨 시간 초과(`models.docker.yaml` `reranker.timeout_s`). 운영은 GPU 모델 서버라 해당 없음. 로컬에서 후보를 늘려 잴 때는 timeout을 올린다.
 - [ ] 스캔 OCR 결과의 위치 정보: 지금은 모든 element가 페이지 전체 bbox를 갖는다. VLM grounding 출력이나 OCR 엔진 bbox로 개선한다.
 - [ ] Office 자체 렌더링(ToolPDF)의 누락 항목: docx 머리글/바닥글/각주/텍스트 상자, pptx SmartArt·도형 텍스트 일부. ToolPDF 저장소의 과제다.

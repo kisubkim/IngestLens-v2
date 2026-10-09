@@ -16,6 +16,7 @@ This app contains no PDF library. Every PDF operation (normalizing documents to 
 - The parser names `pymupdf_text`/`pymupdf_tables` (in `strategy_rules.yaml`, decisions, tests) are only labels for ToolPDF's `text` mode, not library use; keep them, since stored runs and tests depend on them.
 - Settings (`RAG_` env vars / `.env`): `RAG_TOOLPDF_URL` (default `http://127.0.0.1:8095`), `RAG_TOOLPDF_API_KEY`, `RAG_TOOLPDF_TRANSFER` (`http`: upload by sha256; `shared`: ToolPDF mounts this app's data dir as its shared folder and files are named by their stored relative path), `RAG_TOOLPDF_TIMEOUT_S`. Files outside the data dir are uploaded in either mode.
 - `api/status.py` checks ToolPDF (`/v1/health`) and reports LibreOffice from it; without the engine no document can be processed.
+- Engine options (ToolPDF >= 0.2.0): the rules' `engine.tables` (table finder: `strategy` lines/lines_strict/text, tolerances, ...) and `engine.image` (jpeg quality, gray, annots, crop pad) are sent as `options` to `profile` and `extract` (same tables in both) and partly to `render`, only when `GET /v1/options` exists (`Engine.option_support()`, cached; the status check resets it when the engine version changes). With options, `extract` puts the crop settings inside `options` instead of the old top-level fields (the engine returns 400 for the same setting given twice). An older engine gets the 0.1.x request; the profiler records `engine_options` or `engine_options_unsupported`. Document passwords (`options.document`) are not used yet.
 
 ## Conventions
 
@@ -91,7 +92,7 @@ Other configuration (`RAG_` env vars or `.env`): `RAG_DATA_DIR` (default `./data
 
 ## Status and next steps (2026-10-09)
 
-- Code and tests (78, both transfer modes) work against ToolPDF; the Docker stack runs with ToolPDF in shared-folder mode.
+- Code and tests (83, both transfer modes) work against ToolPDF; the Docker stack runs with ToolPDF in shared-folder mode.
 - License is MIT; `NOTICE.md` explains ToolPDF (AGPL-3.0) as a separate program. Docs must not describe this repository as derived from another IngestLens repository.
 - Docs describe the ToolPDF structure. Verified on this PC (2026-10-09): the Docker bundle (WSL Docker), the `--singularity` bundle (`singularity.sh start` in an Apptainer container, model server on CPU), and the Windows path with Windows Ollama 0.40.1 (`docs/WINDOWS.md` §3). Not yet: the offline server and Singularity `--nv`.
 - Pushed to `https://github.com/kisubkim/IngestLens-v2` (`origin/main`, public, MIT). Next: the bundle on the offline server (`docs/HANDOFF.md` §6).

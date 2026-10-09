@@ -16,6 +16,7 @@
 - 10-09: Open WebUI 채팅 모델 `gemma4:e4b`, 쪽 이미지 필터 0.4.0(답과 상관없는 썸네일 문제 수정)
 - 10-09: 공개 센서 데이터시트 4종(22~60쪽)으로 Open WebUI 전체 흐름 시험. 짧은 청크 병합이 필요함을 확인
 - 10-09: 에이전트 설명서(`docs/AGENTS.md`)와 규칙을 바로 바꾸는 화면(`/#rules`)
+- 10-10: ToolPDF 0.2.0 엔진 옵션(표 찾기 방식 등) 연결, PDF 엔진 인터페이스·MIT 내장 엔진 계획(`docs/ENGINE_PLAN.md`)
 
 ## 1. 한눈에 보기
 
@@ -340,6 +341,16 @@
   - 로컬 CPU reranker는 커진 청크 20개를 60초 안에 rerank하지 못해 시간 초과가 났다(운영 GPU와 무관).
 - `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
 - Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
+
+### 2-29. ToolPDF 0.2.0 엔진 옵션과 엔진 계획 (10-10)
+
+- ToolPDF 0.2.0(사용자가 갱신, ToolPDF 저장소에는 아직 커밋 전)이 `info`·`text`·`profile`·`extract`·`render`에 선택 필드 `options`(표 찾기 `tables`, 이미지 `image`, 암호 `document`)와 `GET /v1/options`를 더했다. 생략하면 0.1.x와 같다.
+- 규칙에 `engine.tables`, `engine.image`를 더했다(기본값 = 엔진 기본값). 규칙 화면에 "PDF 엔진 옵션" 탭(`/#rules/engine`).
+- `tools/toolpdf.py`: 엔진이 `/v1/options`를 주면 `profile`·`extract`(표·이미지)·`render`(품질·주석)에 옵션을 보낸다. `extract`는 잘라내기 설정을 `options` 안으로 옮긴다(같은 설정을 두 군데 다른 값으로 주면 400이라서). 옛 엔진에는 예전 요청 그대로.
+- 근거: 프로파일 단계에 `engine_options`(보낸 옵션과 엔진 버전) 또는 `engine_options_unsupported`. 상태 화면은 0.2.0 미만이면 "주의", 엔진 버전이 바뀌면 옵션 지원 여부를 다시 묻는다.
+- 확인: `tests/test_engine_options.py` 5개. 괘선 없는 표를 `lines`로는 못 찾고 `text`로는 찾는 것, 표 찾기 끄기, 실행 근거, 옛 엔진에 옵션 없이 예전 필드가 가는 것. 전체 83개(두 전송 방식).
+- 계획: `docs/ENGINE_PLAN.md`. ToolPDF API를 그대로 계약으로 하는 `PdfEngine` 인터페이스, ToolPDF 클라이언트와 MIT 라이브러리(pypdfium2, pdfplumber/pdfminer.six, Pillow, reportlab, python-docx/pptx, openpyxl) 내장 엔진, 두 앱이 함께 쓰는 별도 MIT 패키지, conformance 시험, 단계와 정할 것.
+- 남은 일: ToolPDF 0.2.0을 ToolPDF 저장소에 커밋하고 배포 폴더를 다시 만들어야 묶음에 들어간다. 암호 PDF는 아직.
 
 ### 2-28. 에이전트 설명서와 규칙 화면 (10-09)
 

@@ -14,6 +14,7 @@ function setPath(o: Rules, path: string[], value: unknown): Rules {
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 function fmt(v: unknown) {
+  if (v === null || v === undefined) return "비움";
   if (typeof v === "boolean") return v ? "켬" : "끔";
   if (v && typeof v === "object") return "(기본 목록)";
   return String(v);
@@ -148,7 +149,8 @@ function FieldEditor({ f, value, def, onChange, state, disabled }: {
     );
   else if (f.type === "choice")
     input = (
-      <select id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <select id={id} value={value ?? ""} disabled={disabled} onChange={(e) => onChange(e.target.value === "" && f.nullable ? null : e.target.value)}>
+        {f.nullable && <option value="">(비움: 기본 방식과 같음)</option>}
         {f.choices!.map((c) => <option key={c}>{c}</option>)}
       </select>
     );

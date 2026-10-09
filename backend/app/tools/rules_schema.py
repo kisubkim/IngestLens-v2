@@ -27,7 +27,11 @@ AGENTS = [
     {"key": "parse", "label": "파싱", "about": "추출 묶음 크기, 그림·캡션·표 재추출 기준."},
     {"key": "chunk", "label": "청킹", "about": "청크 크기·겹침·최소 크기. 전략 결정 단계가 이 값으로 계획을 세우고 청킹 단계가 쓴다."},
     {"key": "embed", "label": "임베딩", "about": "바꿀 규칙 값이 없다. 임베딩·VLM·reranker 모델 주소는 config/models.yaml에서 정한다."},
+    {"key": "engine", "label": "PDF 엔진 옵션",
+     "about": "PDF 엔진(ToolPDF 0.2.0 이상)에 넘기는 표 찾기·이미지 옵션. 표 옵션은 콘텐츠 분석과 파싱에 같이 쓰여 두 단계가 같은 표를 본다. "
+              "기본값은 엔진 기본값과 같다. 옵션을 모르는 옛 엔진에는 보내지 않고 근거에 남긴다."},
 ]
+TABLE_STRATEGIES = ["lines", "lines_strict", "text"]
 
 
 def _f(agent, path, label, help, type, **kw):
@@ -77,15 +81,38 @@ FIELDS = [
     _f("chunk", ["strategy", "overlap_tokens"], "겹침(토큰)", "본문이 크기 때문에 끊길 때 앞 청크 끝을 다음 청크 앞에 반복한다. 청크 크기의 1/4까지.", "int", min=0, max=2048),
     _f("chunk", ["strategy", "min_tokens"], "최소 청크 크기(토큰)", "이보다 짧은 청크를 같은 절의 이웃 청크와 합친다. 0이면 합치지 않는다. 청크 크기의 1/2까지.",
        "int", min=0, max=4096),
+    # engine (ToolPDF options; the same names as the table finder's settings)
+    _f("engine", ["engine", "tables", "enabled"], "표 찾기", "끄면 표를 찾지 않는다(표 쪽 분류와 표 추출이 없어진다).", "bool"),
+    _f("engine", ["engine", "tables", "strategy"], "표 찾기 방식",
+       "lines: 괘선과 칠한 사각형. lines_strict: 괘선만. text: 글자 정렬로 찾아 괘선 없는 표(논문 스타일)도 찾는다. 대신 본문 문단을 표로 잘못 볼 수 있다.",
+       "choice", choices=TABLE_STRATEGIES),
+    _f("engine", ["engine", "tables", "vertical_strategy"], "열 찾기 방식", "비우면 '표 찾기 방식'과 같다.", "choice", choices=TABLE_STRATEGIES, nullable=True),
+    _f("engine", ["engine", "tables", "horizontal_strategy"], "행 찾기 방식", "비우면 '표 찾기 방식'과 같다.", "choice", choices=TABLE_STRATEGIES, nullable=True),
+    _f("engine", ["engine", "tables", "snap_tolerance"], "선 맞추기 거리(pt)", "이 거리 안의 평행선을 한 선으로 본다.", "float", min=0, max=50, step=0.5),
+    _f("engine", ["engine", "tables", "join_tolerance"], "선 잇기 거리(pt)", "같은 선 위에서 이 거리 안의 조각을 잇는다.", "float", min=0, max=50, step=0.5),
+    _f("engine", ["engine", "tables", "edge_min_length"], "최소 선 길이(pt)", "이보다 짧은 선은 버린다.", "float", min=0, max=50, step=0.5),
+    _f("engine", ["engine", "tables", "intersection_tolerance"], "교차 판정 거리(pt)", "이 거리 안의 선을 교차로 본다.", "float", min=0, max=50, step=0.5),
+    _f("engine", ["engine", "tables", "text_tolerance"], "글자 묶기 거리(pt)", "text 방식: 이 거리 안의 글자를 한 단어로 본다.", "float", min=0, max=50, step=0.5),
+    _f("engine", ["engine", "tables", "min_words_vertical"], "열로 인정할 단어 수", "text 방식: 세로로 정렬된 단어가 이 수 이상이면 열로 본다.", "int", min=1, max=100),
+    _f("engine", ["engine", "tables", "min_words_horizontal"], "행으로 인정할 단어 수", "text 방식: 가로로 정렬된 단어가 이 수 이상이면 행으로 본다.", "int", min=1, max=100),
+    _f("engine", ["engine", "tables", "markdown_clean"], "칸 안 Markdown 기호 이스케이프", "칸 안의 |, * 같은 기호를 글자로 바꾼다.", "bool"),
+    _f("engine", ["engine", "tables", "markdown_fill_empty"], "병합된 칸 채우기", "병합된 칸을 병합된 값으로 채운다.", "bool"),
+    _f("engine", ["engine", "image", "jpeg_quality"], "JPEG 품질", "VLM에 보내는 잘라낸 이미지와 쪽 이미지의 JPEG 품질.", "int", min=30, max=100),
+    _f("engine", ["engine", "image", "colorspace"], "VLM용 이미지 색", "gray: 흑백 한 채널(전송량이 준다). 색이 중요한 차트에는 rgb.", "choice", choices=["rgb", "gray"]),
+    _f("engine", ["engine", "image", "annots"], "PDF 주석 그리기", "메모, 형광펜, 양식 필드를 이미지에 그린다.", "bool"),
+    _f("engine", ["engine", "image", "crop_pad"], "잘라낼 때 여백(pt)", "표·그림을 VLM용으로 자를 때 둘레에 더하는 여백.", "float", min=0, max=72, step=1),
 ]
 
 _BY_PATH = {tuple(f["path"]): f for f in FIELDS}
 
 
-def get(d: dict, path: list[str]):
+MISSING = object()
+
+
+def get(d: dict, path: list[str], default=None):
     for k in path:
         if not isinstance(d, dict) or k not in d:
-            return None
+            return default
         d = d[k]
     return d
 
@@ -163,9 +190,11 @@ def validate(rules: dict) -> list[str]:
         if leaf not in _BY_PATH and leaf != ("profiler", "default", "id"):
             errors.append(f"{'.'.join(leaf)}: 바꿀 수 없는 항목입니다")
     for f in FIELDS:
-        v, where = get(rules, f["path"]), f["label"]
-        if v is None:
+        v, where = get(rules, f["path"], MISSING), f["label"]
+        if v is MISSING or (v is None and not f.get("nullable")):
             errors.append(f"{where}: 값이 없습니다")
+        elif v is None:
+            continue
         elif f["type"] in ("int", "float"):
             _number(f, v, where, errors)
         elif f["type"] == "bool" and not isinstance(v, bool):

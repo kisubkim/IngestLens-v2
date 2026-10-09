@@ -13,6 +13,7 @@ from ..config import models_cfg, settings
 from ..db import session
 from ..models import Run
 from ..tools import vectorstore
+from ..tools.toolpdf import engine
 
 router = APIRouter(prefix="/api", tags=["status"])
 
@@ -88,6 +89,13 @@ async def _check_model(client: httpx.AsyncClient, key: str) -> dict:
     return _item(key, label, "ok", f"{model} · 응답 {ms}ms", ms)
 
 
+def _version(v) -> tuple[int, ...]:
+    try:
+        return tuple(int(x) for x in str(v).split(".")[:2])
+    except ValueError:
+        return (0,)
+
+
 async def _check_engine(client: httpx.AsyncClient) -> list[dict]:
     """The PDF engine (ToolPDF) and, through it, LibreOffice. Without the engine no document can be processed."""
     base, mode = settings.toolpdf_url.rstrip("/"), settings.toolpdf_transfer
@@ -106,7 +114,13 @@ async def _check_engine(client: httpx.AsyncClient) -> list[dict]:
         engine_item = _item("engine", "PDF 엔진 (ToolPDF)", "error",
                             "RAG_TOOLPDF_TRANSFER=shared 인데 엔진에 공유 폴더(TOOLPDF_SHARED_ROOT)가 없습니다", ms)
     else:
-        engine_item = _item("engine", "PDF 엔진 (ToolPDF)", "ok", f"{h.get('engine')} · ToolPDF {h.get('version')} · 파일 전달 {mode} · 응답 {ms}ms", ms)
+        # The engine may have been upgraded while the app runs: ask again whether it takes options.
+        known = engine()._options
+        if known is not False and (known or {}).get("version") != h.get("version"):
+            engine().reset()
+        opts = "옵션 지원" if _version(h.get("version")) >= (0, 2) else "옵션 미지원(0.2.0 이상 필요, 규칙의 PDF 엔진 옵션이 적용되지 않음)"
+        engine_item = _item("engine", "PDF 엔진 (ToolPDF)", "ok" if _version(h.get("version")) >= (0, 2) else "warn",
+                            f"{h.get('engine')} · ToolPDF {h.get('version')} · {opts} · 파일 전달 {mode} · 응답 {ms}ms", ms)
     office = (_item("office", "LibreOffice", "ok", "PDF 엔진에 설치됨: .doc, .ppt, .hwp도 변환합니다") if h.get("libreoffice") else
               _item("office", "LibreOffice", "off", "PDF 엔진에 없음: docx, pptx, xlsx는 자체 변환, .doc, .ppt, .hwp는 처리할 수 없습니다"))
     return [engine_item, office]
