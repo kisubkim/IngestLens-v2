@@ -21,6 +21,8 @@ ToolPDF가 꺼져 있으면 문서를 하나도 처리할 수 없다. 아래 스
 
 A와 B는 둘 다 포트 8000을 쓰므로 동시에 띄우지 않는다(바꾸는 법은 5절).
 
+**ToolPDF 없이:** 방법 A는 PDF 엔진 ToolPDF 없이 앱 하나로도 동작한다(앱 안의 내장 엔진, 퍼미시브 라이선스 라이브러리만). `setup_local.bat local`, `start_local.bat local`로 실행한다(2-6절). Git이 필요 없다.
+
 ## 1. 준비물 (처음 한 번)
 
 | 프로그램 | 받는 곳 | 주의 |
@@ -78,7 +80,7 @@ D:\work\
 ### 2-4. 확인
 
 1. 화면 왼쪽 아래의 상태 표시를 누르거나 http://localhost:8000/#status 를 연다.
-2. **"PDF 엔진 (ToolPDF)"가 정상**이어야 한다. 모델을 연결하지 않았으면 임베딩, VLM, reranker는 "꺼짐"이 정상이다.
+2. **"PDF 엔진 (ToolPDF)"가 정상**이어야 한다(ToolPDF 없이 실행했으면 "PDF 엔진 (내장)"). 모델을 연결하지 않았으면 임베딩, VLM, reranker는 "꺼짐"이 정상이다.
 3. 왼쪽에서 PDF 하나를 올리고 실행한다. 단계가 차례로 끝나고 "근거" 탭에 결정 이유가 보이면 된다.
 
 모델 없이 실행하면 다음처럼 동작한다(결정 기록에 대체 동작으로 남는다).
@@ -88,6 +90,22 @@ D:\work\
 ### 2-5. 중지
 
 **`stop_local.bat`을 더블클릭**하거나 두 창을 닫는다. 올린 문서와 결과는 `IngestLens-v2\data\`에 남고, 다시 실행하면 그대로 보인다.
+
+### 2-6. ToolPDF 없이 실행
+
+PDF 처리를 앱 안의 내장 엔진(pypdfium2, pdfplumber 등)으로 한다. ToolPDF를 받지 않고 창도 하나만 뜬다.
+
+```bat
+setup_local.bat local
+start_local.bat local
+```
+
+`setup_local.bat local`은 처음 한 번만 실행한다. ToolPDF를 받지 않는다(Git 불필요). `start_local.bat local`은 앱만 띄운다(`RAG_PDF_ENGINE=local`).
+
+- 명령 프롬프트(cmd)에서 `IngestLens-v2` 폴더로 가서 실행한다. 더블클릭으로는 `local`을 줄 수 없다.
+- 그냥 `start_local.bat`도 ToolPDF가 준비되어 있지 않으면 앱만 띄우고 내장 엔진을 쓴다(기본값 `auto`).
+- 상태 화면에 **"PDF 엔진 (내장)"**이 보인다. 실행의 "근거" 탭 `PDF engine`에도 어느 엔진으로 처리했는지 남는다.
+- 차이: 쪽 분류, 표, 그림 영역은 공개 문서 50쪽에서 ToolPDF와 같았다. 오래된 스캔 문서의 글자층은 제목 조각이 더 많이 생긴다. docx·pptx·xlsx는 Windows의 맑은 고딕으로 그린다(`docs/ENGINE_PLAN.md` 9절).
 
 ## 3. 실제 모델 연결 (선택)
 
@@ -197,13 +215,14 @@ PowerShell에서는 `$env:INGESTLENS_PORT='8100'; .\start_local.bat`, cmd에서�
 
 ## 6. LibreOffice (선택)
 
-없어도 docx, pptx, xlsx는 ToolPDF가 자체 렌더링으로 PDF로 바꾼다. **doc, ppt, hwp** 같은 옛 형식을 처리하거나 원본과 똑같은 레이아웃이 필요할 때만 설치한다.
+없어도 docx, pptx, xlsx는 PDF 엔진이 자체 렌더링으로 PDF로 바꾼다. **doc, ppt, hwp** 같은 옛 형식을 처리하거나 원본과 똑같은 레이아웃이 필요할 때만 설치한다.
 
 1. https://www.libreoffice.org/ 에서 설치한다.
 2. `ToolPDF\toolpdf.toml`에 실행 파일 위치를 적는다(PATH에 있으면 생략).
    ```toml
    soffice_path = "C:/Program Files/LibreOffice/program/soffice.exe"
    ```
+   ToolPDF 없이(내장 엔진) 쓸 때는 기본 설치 위치(`C:\Program Files\LibreOffice`)를 저절로 찾는다. 다른 곳에 설치했으면 `IngestLens-v2\.env`에 `RAG_SOFFICE_PATH=<soffice.exe 경로>`를 적는다.
 3. 다시 시작하면 `/#status`의 LibreOffice 항목이 "정상"이 된다.
 
 Windows에는 한글 글꼴이 이미 있어 따로 설치할 것이 없다. 이 방식은 개발 PC에서 아직 시험하지 않았다(`docs/HANDOFF.md` 1절).
@@ -266,7 +285,8 @@ cd D:\work\IngestLens-v2;  git pull
 | pip나 npm이 `CERTIFICATE_VERIFY_FAILED`, `SELF_SIGNED_CERT_IN_CHAIN`으로 실패 | 백신(HTTPS 검사)이나 사내 프록시가 인증서를 바꾸는 경우다. 백신의 HTTPS 검사를 잠시 끄거나, 사내 루트 인증서를 PEM 파일로 내보내(`docker\certs\README.md`의 PowerShell 명령) `set PIP_CERT=<파일>`, `set NODE_EXTRA_CA_CERTS=<파일>`을 정한 같은 cmd 창에서 `setup_local.bat`을 실행한다 |
 | `start_local.bat`: "포트 8000 를 이미 다른 프로그램이 쓰고 있습니다" | 이미 실행 중이면 `stop_local.bat`. Docker 스택(방법 B)이 떠 있으면 `stop_test.bat`이나 `INGESTLENS_PORT=8100` |
 | 상태에서 "PDF 엔진 (ToolPDF)"가 오류 | "ToolPDF" 창이 닫혔거나 오류로 멈췄다. 창의 메시지를 보고 `start_local.bat`을 다시 실행한다. ToolPDF 폴더나 그 안의 `.venv`가 없으면 `setup_local.bat` |
-| 문서가 "실패"로 끝남 | 실행 화면의 "경고/오류" 탭에 이유가 있다. doc/ppt/hwp는 LibreOffice가 필요하다(6절). 암호가 걸린 PDF는 처리하지 않는다 |
+| 상태에서 "PDF 엔진 (내장)"이 주의 | ToolPDF가 응답하지 않아 내장 엔진으로 처리하고 있다(기본값 `auto`). 그대로 써도 된다. ToolPDF로 처리하려면 "ToolPDF" 창을 확인하고 `start_local.bat`을 다시 실행한다 |
+| 문서가 "실패"로 끝남 | 실행 화면의 "경고/오류" 탭에 이유가 있다. doc/ppt/hwp는 LibreOffice가 필요하다(6절). 암호가 걸린 PDF는 "PDF is password protected"로 끝나고, 그 화면에 비밀번호를 넣고 "저장하고 다시 실행"을 누른다 |
 | 브라우저에 화면 대신 `{"detail":"Not Found"}` | 화면이 빌드되지 않았다. Node.js를 설치하고 `setup_local.bat`을 다시 실행한다 |
 | 임베딩·VLM이 "오류(연결할 수 없습니다)" | Ollama가 꺼져 있다. 시작 메뉴에서 Ollama를 실행한다 |
 | 임베딩·VLM이 "주의(모델이 없습니다)" | `ollama pull <모델>`을 하거나 설정 파일의 `model` 이름을 `ollama list`의 이름과 맞춘다 |
@@ -279,6 +299,7 @@ cd D:\work\IngestLens-v2;  git pull
 - 확인함: `setup_local.bat`(가상환경, 패키지, 화면 빌드), `start_local.bat`(두 서버 시작, 포트 충돌 검사), `stop_local.bat`. 모델 없이 PDF 처리.
 - 확인함, 3절 순서 그대로: Windows용 Ollama 0.40.1에 `qwen2.5vl:7b`, `bge-m3`를 받고 `.env`에 `RAG_MODELS_FILE=config/models.windows.yaml` 한 줄. Ollama 환경 변수는 바꾸지 않음. 상태 화면 임베딩·VLM 정상, `sample.pdf`(그림 설명, 차트 재분류) 처리, 한국어 실제 스캔 3쪽 OCR(청크 12개, 표 포함).
 - 확인함: Docker의 Ollama와 모델 서버 reranker로 hybrid+rerank 검색.
+- 확인함(2026-10-10): `start_local.bat local`(앱만, 상태 화면 "PDF 엔진 (내장)" 정상), `stop_local.bat`.
 - 확인 못 함: 3-3의 모델 서버를 Windows Python에서 직접 실행, LibreOffice(6절), 다른 PC에서 접속(4절).
 
 ## 11. 스크립트 없이 직접 실행 (개발자용)
@@ -293,6 +314,7 @@ cd D:\work\ToolPDF
 # 창 2: IngestLens
 cd D:\work\IngestLens-v2\backend
 $env:RAG_TOOLPDF_URL = 'http://127.0.0.1:8095'      # 기본값과 같으면 생략
+# $env:RAG_PDF_ENGINE = 'local'                    # ToolPDF 없이(창 1 생략)
 ..\.venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 

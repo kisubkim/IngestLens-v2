@@ -13,7 +13,7 @@ from ..config import models_cfg, settings
 from ..db import session
 from ..models import Run
 from ..tools import vectorstore
-from ..tools.toolpdf import engine
+from ..tools.engine import engine, local, toolpdf
 
 router = APIRouter(prefix="/api", tags=["status"])
 
@@ -96,34 +96,57 @@ def _version(v) -> tuple[int, ...]:
         return (0,)
 
 
-async def _check_engine(client: httpx.AsyncClient) -> list[dict]:
-    """The PDF engine (ToolPDF) and, through it, LibreOffice. Without the engine no document can be processed."""
-    base, mode = settings.toolpdf_url.rstrip("/"), settings.toolpdf_transfer
+async def _check_toolpdf(client: httpx.AsyncClient) -> tuple[dict | None, dict]:
+    """ToolPDF's health (None when it does not answer) and its status item."""
+    base, mode, label = settings.toolpdf_url.rstrip("/"), settings.toolpdf_transfer, "PDF 엔진 (ToolPDF)"
     t0 = time.perf_counter()
     try:
         r = await client.get(f"{base}/v1/health")
         h = r.json() if r.status_code == 200 else {}
     except Exception as e:
-        return [_item("engine", "PDF 엔진 (ToolPDF)", "error", f"{base} 에 연결할 수 없습니다 ({type(e).__name__}). 문서를 처리할 수 없습니다", _ms(t0)),
-                _item("office", "LibreOffice", "off", "PDF 엔진에 연결되지 않아 알 수 없습니다")]
+        return None, _item("engine", label, "error", f"{base} 에 연결할 수 없습니다 ({type(e).__name__}). 문서를 처리할 수 없습니다", _ms(t0))
     ms = _ms(t0)
     if not h:
-        return [_item("engine", "PDF 엔진 (ToolPDF)", "error", f"{base} 응답 {r.status_code}", ms),
-                _item("office", "LibreOffice", "off", "PDF 엔진에 연결되지 않아 알 수 없습니다")]
+        return None, _item("engine", label, "error", f"{base} 응답 {r.status_code}", ms)
     if mode == "shared" and "shared" not in h.get("transfer", []):
-        engine_item = _item("engine", "PDF 엔진 (ToolPDF)", "error",
-                            "RAG_TOOLPDF_TRANSFER=shared 인데 엔진에 공유 폴더(TOOLPDF_SHARED_ROOT)가 없습니다", ms)
-    else:
-        # The engine may have been upgraded while the app runs: ask again whether it takes options.
-        known = engine()._options
-        if known is not False and (known or {}).get("version") != h.get("version"):
-            engine().reset()
-        opts = "옵션 지원" if _version(h.get("version")) >= (0, 2) else "옵션 미지원(0.2.0 이상 필요, 규칙의 PDF 엔진 옵션이 적용되지 않음)"
-        engine_item = _item("engine", "PDF 엔진 (ToolPDF)", "ok" if _version(h.get("version")) >= (0, 2) else "warn",
-                            f"{h.get('engine')} · ToolPDF {h.get('version')} · {opts} · 파일 전달 {mode} · 응답 {ms}ms", ms)
-    office = (_item("office", "LibreOffice", "ok", "PDF 엔진에 설치됨: .doc, .ppt, .hwp도 변환합니다") if h.get("libreoffice") else
-              _item("office", "LibreOffice", "off", "PDF 엔진에 없음: docx, pptx, xlsx는 자체 변환, .doc, .ppt, .hwp는 처리할 수 없습니다"))
-    return [engine_item, office]
+        return h, _item("engine", label, "error", "RAG_TOOLPDF_TRANSFER=shared 인데 엔진에 공유 폴더(TOOLPDF_SHARED_ROOT)가 없습니다", ms)
+    # The engine may have been upgraded while the app runs: ask again whether it takes options.
+    known = toolpdf()._options
+    if known is not False and (known or {}).get("version") != h.get("version"):
+        toolpdf().reset()
+    new = _version(h.get("version")) >= (0, 2)
+    opts = "옵션 지원" if new else "옵션 미지원(0.2.0 이상 필요, 규칙의 PDF 엔진 옵션과 암호 PDF를 쓸 수 없음)"
+    return h, _item("engine", label, "ok" if new else "warn",
+                    f"{h.get('engine')} · ToolPDF {h.get('version')} · {opts} · 파일 전달 {mode} · 응답 {ms}ms", ms)
+
+
+def _office_item(where: str, soffice: str | None) -> dict:
+    if soffice:
+        return _item("office", "LibreOffice", "ok", f"{where}에 있음: .doc, .ppt, .hwp도 변환합니다")
+    return _item("office", "LibreOffice", "off", f"{where}에 없음: docx, pptx, xlsx는 자체 변환, .doc, .ppt, .hwp는 처리할 수 없습니다")
+
+
+async def _check_engine(client: httpx.AsyncClient) -> list[dict]:
+    """The PDF engine in use (RAG_PDF_ENGINE) and, through it, LibreOffice. In auto mode ToolPDF is asked too:
+    the item says which engine the next run uses."""
+    eng = engine()
+    if eng.mode == "local":
+        h = await asyncio.to_thread(local().health)
+        return [_item("engine", "PDF 엔진 (내장)", "ok", f"RAG_PDF_ENGINE=local · {h['engine']}"),
+                _office_item("이 서버", h.get("libreoffice"))]
+    h, item = await _check_toolpdf(client)
+    if eng.mode == "toolpdf" or h is not None:
+        if eng.mode == "auto":
+            item["detail"] = "auto: " + item["detail"]
+            if eng.impl.name == "local":
+                item["detail"] += " · 지금은 내장 엔진 사용 중, 다음 실행부터 ToolPDF"
+        office = _office_item("PDF 엔진", h.get("libreoffice")) if h else _item("office", "LibreOffice", "off", "PDF 엔진에 연결되지 않아 알 수 없습니다")
+        return [item, office]
+    # auto and ToolPDF does not answer: the local engine processes documents
+    lh = await asyncio.to_thread(local().health)
+    return [_item("engine", "PDF 엔진 (내장)", "warn",
+                  f"auto: ToolPDF({settings.toolpdf_url})에 연결되지 않아 내장 엔진으로 처리합니다 · {lh['engine']}"),
+            _office_item("이 서버", lh.get("libreoffice"))]
 
 
 def _runs() -> dict:

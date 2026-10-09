@@ -290,7 +290,7 @@ export default function App() {
               </div>
             </header>
             {runId ? (
-              <RunView key={runId} runId={runId} documentId={selected.id} onFinished={refresh} onOpenRules={openRules} />
+              <RunView key={runId} runId={runId} documentId={selected.id} onFinished={refresh} onOpenRules={openRules} onRerun={start} />
             ) : (
               <div className="placeholder">아직 실행 기록이 없습니다.</div>
             )}

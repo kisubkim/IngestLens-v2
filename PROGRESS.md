@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-10-09
+최종 갱신: 2026-10-10
 
 전체 상태, 설계 이유, 운영 절차는 `docs/HANDOFF.md`에 있다. 이 문서는 2026-10-04부터 한 작업의 진행 상황을 정리한다.
 - 10-04 오전: 로컬 실제 모델 검증, VLM 평가 체계
@@ -17,6 +17,7 @@
 - 10-09: 공개 센서 데이터시트 4종(22~60쪽)으로 Open WebUI 전체 흐름 시험. 짧은 청크 병합이 필요함을 확인
 - 10-09: 에이전트 설명서(`docs/AGENTS.md`)와 규칙을 바로 바꾸는 화면(`/#rules`)
 - 10-10: ToolPDF 0.2.0 엔진 옵션(표 찾기 방식 등) 연결, PDF 엔진 인터페이스·MIT 내장 엔진 계획(`docs/ENGINE_PLAN.md`)
+- 10-10: PDF 엔진 인터페이스와 내장 엔진 구현(`RAG_PDF_ENGINE=auto`), 암호 PDF, ToolPDF 없는 배포 형태
 
 ## 1. 한눈에 보기
 
@@ -342,6 +343,23 @@
 - `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
 - Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
 
+### 2-30. PDF 엔진 인터페이스, 내장 엔진, 암호 PDF (10-10)
+
+사용자 결정: 엔진 패키지는 당분간 이 저장소에, 앱은 하나로 두고 배포 형태만 둘, 기본 엔진은 `auto`, 암호 PDF 지원. ToolPDF는 0.2.0 기준(`toolpdf/__init__.py`, `/v1/health` 확인).
+
+- **엔진 패키지** `backend/app/engines/`(앱의 다른 코드를 import하지 않음, 시험으로 검사):
+  - `base.py`: `PdfEngine` 프로토콜, `EngineError`·`PasswordError`, 옵션 정의와 검사(ToolPDF README의 이름·기본값·범위), `GET /v1/options`와 같은 모양의 스키마.
+  - `toolpdf.py`: 예전 `tools/toolpdf.py`를 옮긴 ToolPDF 클라이언트. 옵션은 호출하는 쪽이 넘긴다. 403은 `PasswordError`. 0.1.x 엔진에는 예전 요청(암호 PDF는 불가).
+  - `local/`: 내장 엔진. pypdfium2(열기, 암호, 렌더, 경로 개수), pdfplumber/pdfminer.six(글자, 크기, 표), Pillow(잘라내기, 흑백, 칠하기), ReportLab(이미지 → PDF, docx·pptx·xlsx 자체 렌더링), LibreOffice(있으면).
+- **앱 쪽** `backend/app/tools/engine.py`: `RAG_PDF_ENGINE=auto|toolpdf|local`(기본 auto: ToolPDF가 응답하면 ToolPDF, 내장 엔진을 쓰는 중이면 실행 시작 때 최대 30초마다 다시 확인), 규칙의 엔진 옵션, 문서 비밀번호, 파서 이름 → 추출 모드. intake가 근거 `pdf_engine_auto`/`pdf_engine_configured`와 `summary.engine`을 남긴다. 상태 화면은 쓰는 엔진(내장이면 "PDF 엔진 (내장)", auto에서 ToolPDF가 없으면 "주의").
+- **암호 PDF**: 업로드의 `password` 폼 필드(`/api/documents`, `/batch`, `/api/ingest`), `PUT /api/documents/{id}/password`, 실패한 실행 화면의 비밀번호 입력란("저장하고 다시 실행"). `documents.password`에 저장하고 모든 엔진 호출에 보낸다. API 응답에는 `has_password`만, 근거·이벤트에는 남기지 않는다. 근거 `pdf_password`.
+- **두 엔진 맞추기**: 공개 문서 10종(50쪽)을 같은 규칙으로 비교해 쪽 라벨 50/50, 표 20/20, 그림 영역 40/40이 같아질 때까지 내장 엔진을 고쳤다. 선 개수를 PDFium 경로 객체 수로(pdfminer는 하위 경로마다 세서 로고 쪽이 `diagram`이 됨), 바깥 세로선 없는 표의 가상 테두리 한도 80 → 400pt(통계표의 행 이름 열 손실), 글자 없는 격자(차트 눈금) 버림, `line_margin` 0.8(`char_margin`은 2 그대로: 3 이상이면 두 단이 붙음), 떨어진 제목 줄 나누기. 남은 차이: 오래된 OCR 글자층의 제목 조각(NACA 149 대 588). 자세히는 `docs/ENGINE_PLAN.md` 9절.
+- **배포 형태 둘**: `build_offline_bundle.py --pdf-engine local`(ToolPDF 없는 묶음 `ingestlens-<버전>-local-offline.tar`, compose는 `deploy/docker-compose.local-engine.yml`), `.env`·`singularity.env`의 `RAG_PDF_ENGINE`, `singularity.sh`는 local이면 PDF 엔진을 건너뜀. 앱 이미지에 나눔 글꼴(`fonts-nanum`, OFL). Windows는 `setup_local.bat local`, `start_local.bat local`(ToolPDF가 준비되지 않았으면 그냥 실행해도 앱만).
+- **시험**: conformance 21개(`test_engine_conformance.py`, 두 엔진에 같은 시험, ToolPDF 답이 기준), 선택·전체 실행·암호 PDF API·패키지 독립·의존성 라이선스 10개(`test_engine_select.py`). 전체 114개가 공유 폴더, HTTP, `RAG_PDF_ENGINE=local` 세 설정에서 통과. `pinned` fixture로 시험마다 엔진을 고정.
+- **확인**: ToolPDF 없는 묶음을 WSL Docker에 `install.sh`로 설치해 sample.pdf, docx(한글 렌더 화면 확인), 암호 PDF 처리. `start_local.bat local`로 앱만 띄우고 `stop_local.bat`으로 중지.
+- **문서**: `NOTICE.md`(내장 엔진 라이브러리, PDFium에 든 라이브러리, FreeType FTL 고지, 묶음 두 형태), `docs/ENGINE_PLAN.md`(결정, 9절 결과), `docs/AGENTS.md`(엔진 선택, 암호 PDF), README, `deploy/README.md` 2-1절, `docs/WINDOWS.md` 2-6절, HANDOFF, CLAUDE.md.
+- 겪은 일: 묶음의 `models.yaml` 자리표시 VLM 주소를 그대로 두면 실행이 InvalidURL로 실패한다(설치 때 경고는 나옴). bash heredoc이 `\\`를 `\`로 바꿔 배치 파일을 고치는 스크립트가 멈췄다(HANDOFF 9절).
+
 ### 2-29. ToolPDF 0.2.0 엔진 옵션과 엔진 계획 (10-10)
 
 - ToolPDF 0.2.0(사용자가 갱신, ToolPDF 저장소에는 아직 커밋 전)이 `info`·`text`·`profile`·`extract`·`render`에 선택 필드 `options`(표 찾기 `tables`, 이미지 `image`, 암호 `document`)와 `GET /v1/options`를 더했다. 생략하면 0.1.x와 같다.
@@ -350,7 +368,7 @@
 - 근거: 프로파일 단계에 `engine_options`(보낸 옵션과 엔진 버전) 또는 `engine_options_unsupported`. 상태 화면은 0.2.0 미만이면 "주의", 엔진 버전이 바뀌면 옵션 지원 여부를 다시 묻는다.
 - 확인: `tests/test_engine_options.py` 5개. 괘선 없는 표를 `lines`로는 못 찾고 `text`로는 찾는 것, 표 찾기 끄기, 실행 근거, 옛 엔진에 옵션 없이 예전 필드가 가는 것. 전체 83개(두 전송 방식).
 - 계획: `docs/ENGINE_PLAN.md`. ToolPDF API를 그대로 계약으로 하는 `PdfEngine` 인터페이스, ToolPDF 클라이언트와 MIT 라이브러리(pypdfium2, pdfplumber/pdfminer.six, Pillow, reportlab, python-docx/pptx, openpyxl) 내장 엔진, 두 앱이 함께 쓰는 별도 MIT 패키지, conformance 시험, 단계와 정할 것.
-- 남은 일: ToolPDF 0.2.0을 ToolPDF 저장소에 커밋하고 배포 폴더를 다시 만들어야 묶음에 들어간다. 암호 PDF는 아직.
+- 남은 일: ToolPDF 0.2.0을 ToolPDF 저장소에 커밋하고 배포 폴더를 다시 만들어야 묶음에 들어간다. 암호 PDF는 2-30에서 했다.
 
 ### 2-28. 에이전트 설명서와 규칙 화면 (10-09)
 
@@ -453,6 +471,8 @@
 2. 그림 설명이 큰 모델에서도 영어로 나오면, prompt를 "한국어로 답하라"로 바꾼다. prompt를 바꿀 때는 `tools/vlm_output.py`의 파서와 `scripts/mock_vllm.py`도 함께 고친다.
 3. **운영 문서로 평가 세트를 늘린다.** 실제로 처리할 문서의 스캔 페이지, 그림, 표를 `evals/samples/`에 추가하고 기대값을 적는다. 사내 문서는 공개 저장소에 올리면 안 되므로 별도 위치에 둔다.
 4. **임베딩 모델을 비교한다.** bge-m3를 기준으로 KURE-v1부터 `eval_retrieval.py`로 잰다. Qwen3-Embedding, e5를 비교하려면 질의·문서 접두어 설정을 먼저 추가한다(`docs/EMBEDDING_MODELS.md`).
+
+- **두 PDF 엔진으로 검색 품질을 비교한다.** 같은 문서를 `RAG_PDF_ENGINE=toolpdf`와 `local`로 처리해 `eval_retrieval.py`, 청크 수, 실제 질문으로 비교하고 내장 엔진의 품질 목표를 정한다(`docs/ENGINE_PLAN.md` 8절 5). 큰 문서는 `bench_large.py`로 속도도 잰다.
 
 ### 보류하거나 남겨 둔 것
 

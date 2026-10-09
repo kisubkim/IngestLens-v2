@@ -18,7 +18,7 @@ from ..db import session
 from ..events import emit_event, record_decision
 from ..models import Element, PageProfile
 from ..tools.figures import attach_captions
-from ..tools.toolpdf import engine
+from ..tools.engine import engine
 from ..tools.vlm import PROMPTS, VLMClient
 from ..tools.vlm_output import md_to_elements, parse_figure, strip_fences
 from .common import PipelineState, update_summary

@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
 from sqlalchemy import select
 
 from ..config import settings
@@ -54,11 +54,12 @@ def queue_run(doc_id: str) -> tuple[dict, bool]:
 
 
 @router.post("/ingest")
-async def ingest(files: list[UploadFile] = File()) -> list[dict]:
-    """Save the files and queue their runs in the given order. Poll `GET /api/runs/{run.id}` for progress."""
+async def ingest(files: list[UploadFile] = File(), password: str | None = Form(None)) -> list[dict]:
+    """Save the files and queue their runs in the given order. Poll `GET /api/runs/{run.id}` for progress.
+    password: for encrypted PDFs among the files (optional)."""
     out = []
     for f in files:
-        doc = await _save(f)
+        doc = await _save(f, password)
         run, created = queue_run(doc["id"])
         out.append({"document": doc, "run": run, "run_created": created})
     return out

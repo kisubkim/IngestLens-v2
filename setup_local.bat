@@ -2,12 +2,15 @@
 chcp 65001 >nul
 setlocal
 rem IngestLens 처음 준비 (Windows, Docker 없이). 한 번만 실행한다. 인터넷이 필요하다.
-rem   1. PDF 엔진 ToolPDF 를 이 폴더 옆(..\ToolPDF)에 받는다(없을 때만, git 필요).
+rem   setup_local.bat          ToolPDF 와 함께 (PDF 처리 품질이 가장 좋다)
+rem   setup_local.bat local    ToolPDF 없이, 앱 안의 내장 PDF 엔진만 (MIT 등 퍼미시브 라이선스만, git 불필요)
+rem   1. PDF 엔진 ToolPDF 를 이 폴더 옆(..\ToolPDF)에 받는다(없을 때만, git 필요. local 이면 건너뛴다).
 rem   2. ToolPDF 와 IngestLens 의 Python 가상환경(.venv)을 만들고 패키지를 설치한다(Python 3.12).
 rem   3. 화면(frontend)을 빌드한다(Node.js 필요).
 rem 다시 실행해도 된다. 이미 있는 것은 건너뛰고 패키지만 맞춘다. 실행은 start_local.bat. 자세히: docs\WINDOWS.md
 cd /d "%~dp0"
 if not defined TOOLPDF_DIR set "TOOLPDF_DIR=%~dp0..\ToolPDF"
+if /i "%~1"=="local" set "RAG_PDF_ENGINE=local"
 
 set "PY="
 py -3.12 --version >nul 2>nul && set "PY=py -3.12"
@@ -21,6 +24,10 @@ if not defined PY (
 echo Python: %PY%
 
 rem ---- 1. ToolPDF ----
+if /i "%RAG_PDF_ENGINE%"=="local" (
+  echo ToolPDF 없이 준비합니다: 내장 PDF 엔진을 씁니다. 실행은 start_local.bat local
+  goto :app
+)
 if not exist "%TOOLPDF_DIR%\toolpdf\server.py" (
   where git >nul 2>nul
   if errorlevel 1 (
@@ -42,6 +49,7 @@ echo ToolPDF 패키지를 설치합니다...
 if errorlevel 1 goto :pipfail
 
 rem ---- 2. IngestLens ----
+:app
 if not exist ".venv\Scripts\python.exe" (
   echo IngestLens 가상환경을 만듭니다...
   %PY% -m venv .venv
@@ -68,7 +76,7 @@ popd
 
 :done
 echo.
-echo 준비가 끝났습니다. 실행: start_local.bat
+if /i "%RAG_PDF_ENGINE%"=="local" (echo 준비가 끝났습니다. 실행: start_local.bat local) else (echo 준비가 끝났습니다. 실행: start_local.bat)
 exit /b 0
 
 :pipfail

@@ -5,7 +5,7 @@ import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -14,7 +14,7 @@ from ..config import settings
 from ..db import session
 from ..graph.pipeline import start_run
 from ..models import Document, Run, to_dict
-from ..tools.toolpdf import engine
+from ..tools.engine import engine
 from ..tools.purge import active_runs, purge_all, purge_documents
 from .auth import require_admin
 
@@ -31,12 +31,21 @@ async def _read_upload(file: UploadFile) -> AsyncIterator[bytes]:
         yield data
 
 
-async def _save(file: UploadFile) -> dict:
-    return await save_stream(file.filename or "upload", _read_upload(file))
+async def _save(file: UploadFile, password: str | None = None) -> dict:
+    return await save_stream(file.filename or "upload", _read_upload(file), password)
 
 
-async def save_stream(filename: str, stream: AsyncIterator[bytes]) -> dict:
-    """Stream to disk while hashing; an identical file returns the existing document."""
+def _password(value: str | None) -> str | None:
+    """An empty password means none. Passwords are kept as given (spaces may be part of them)."""
+    if value is not None and len(value) > 1024:
+        raise HTTPException(400, "password too long")
+    return value or None
+
+
+async def save_stream(filename: str, stream: AsyncIterator[bytes], password: str | None = None) -> dict:
+    """Stream to disk while hashing; an identical file returns the existing document (a given password replaces
+    its stored one)."""
+    password = _password(password)
     doc_id = uuid.uuid4().hex
     dest_dir = settings.data_dir / "uploads" / doc_id
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -58,24 +67,44 @@ async def save_stream(filename: str, stream: AsyncIterator[bytes]) -> dict:
         if existing:
             dest.unlink()
             dest_dir.rmdir()
+            if password:
+                existing.password = password
             return {**to_dict(existing), "duplicate": True}
-        doc = Document(id=doc_id, filename=filename or dest.name, sha256=digest, size=size, path=settings.stored_path(dest))
+        doc = Document(id=doc_id, filename=filename or dest.name, sha256=digest, size=size, path=settings.stored_path(dest),
+                       password=password)
         s.add(doc)
         s.flush()
         return {**to_dict(doc), "duplicate": False}
 
 
 @router.post("")
-async def upload(file: UploadFile) -> dict:
-    return await _save(file)
+async def upload(file: UploadFile, password: str | None = Form(None)) -> dict:
+    """password: for an encrypted PDF (form field; optional)."""
+    return await _save(file, password)
 
 
 @router.post("/batch")
-async def upload_many(files: list[UploadFile] = File()) -> list[dict]:
-    """Save several files from one request. Each file is stored on its own; duplicates stay duplicates."""
+async def upload_many(files: list[UploadFile] = File(), password: str | None = Form(None)) -> list[dict]:
+    """Save several files from one request. Each file is stored on its own; duplicates stay duplicates.
+    password: applies to every file of the request (encrypted PDFs; ignored by the others)."""
     if not files:
         raise HTTPException(400, "no files")
-    return [await _save(f) for f in files]
+    return [await _save(f, password) for f in files]
+
+
+class PasswordRequest(BaseModel):
+    password: str | None = None
+
+
+@router.put("/{doc_id}/password")
+def set_password(doc_id: str, req: PasswordRequest) -> dict:
+    """Set (or with an empty value clear) an encrypted PDF's password; start a new run afterwards. Cached page
+    images stay valid: the document's content does not change."""
+    _doc(doc_id)
+    with session() as s:
+        d = s.get(Document, doc_id)
+        d.password = _password(req.password)
+        return to_dict(d)
 
 
 class BatchRunRequest(BaseModel):

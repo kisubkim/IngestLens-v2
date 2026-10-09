@@ -28,6 +28,8 @@ services:
     restart: unless-stopped
     environment:
       RAG_MODELS_FILE: /config/models.yaml
+      # auto: ToolPDF 가 응답하면 ToolPDF, 아니면 앱 안의 내장 엔진. toolpdf 로 정하면 ToolPDF 가 없을 때 처리하지 않는다.
+      RAG_PDF_ENGINE: ${RAG_PDF_ENGINE:-auto}
       RAG_TOOLPDF_URL: http://toolpdf:8095
       RAG_TOOLPDF_TRANSFER: shared
       RAG_TOOLPDF_API_KEY: ${TOOLPDF_API_KEY:-}

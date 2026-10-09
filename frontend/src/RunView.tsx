@@ -204,11 +204,43 @@ function SummaryCards({ summary }: { summary: Record<string, any> }) {
   );
 }
 
-export default function RunView({ runId, documentId, onFinished, onOpenRules }: {
+/** An encrypted PDF whose run failed for its password: store the password and run again. */
+function PasswordForm({ documentId, onRerun }: { documentId: string; onRerun: () => void }) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setPassword(documentId, password);
+      onRerun();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="password-form" onSubmit={submit}>
+      <label htmlFor="pdf-password">암호가 걸린 PDF입니다. 문서를 여는 비밀번호:</label>
+      <input id="pdf-password" type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <button className="primary" type="submit" disabled={busy || !password}>
+        저장하고 다시 실행
+      </button>
+      <span className="muted">비밀번호는 이 문서의 쪽 이미지를 만들 때도 쓰도록 서버 DB에 저장되고, 문서를 지우면 함께 지워집니다.</span>
+      {error && <div className="error-box">{error}</div>}
+    </form>
+  );
+}
+
+export default function RunView({ runId, documentId, onFinished, onOpenRules, onRerun }: {
   runId: string;
   documentId: string;
   onFinished: () => void;
   onOpenRules?: (step: string) => void;
+  onRerun?: () => void;
 }) {
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
@@ -289,6 +321,9 @@ export default function RunView({ runId, documentId, onFinished, onOpenRules }: 
         )}
       </div>
       {run?.error && <div className="error-box">{run.error}</div>}
+      {run?.status === "failed" && /PDF password|password protected/.test(run.error ?? "") && onRerun && (
+        <PasswordForm documentId={documentId} onRerun={onRerun} />
+      )}
 
       <nav className="view-tabs">
         {(

@@ -1,12 +1,12 @@
 # PDF 엔진 인터페이스 계획: ToolPDF와 MIT 내장 엔진
 
-작성 2026-10-10. 상태: **계획**(아직 구현하지 않음). 결정이 필요한 것은 8절에 모았다.
+작성 2026-10-10. 상태: **1~5단계 구현됨**(2026-10-10). 결정은 8절, 구현 결과와 측정은 9절.
 
 ## 1. 목표
 
 - 지금 IngestLens는 모든 PDF 작업을 별도 프로그램 ToolPDF(AGPL-3.0, PyMuPDF)에 HTTP로 맡긴다.
 - 앞으로 **ToolPDF 없이도** 같은 기능을 쓰고 싶다. 앱 안에서 도는 내장 엔진을 MIT·BSD·Apache 같은 퍼미시브 라이선스 라이브러리로만 만든다.
-- 곧 MIT 라이선스로 같은 기능의 앱을 하나 더 만들 예정이다. 그 앱과 이 앱이 **같은 엔진 인터페이스**를 쓰게 해서 엔진을 한 번만 만든다.
+- 앱은 하나로 두고 **배포 형태만 둘**로 한다(8절 결정 2): ToolPDF와 함께, 또는 ToolPDF 없이 내장 엔진만. 엔진 인터페이스는 나중에 다른 MIT 앱도 쓸 수 있게 앱과 떼어 둔다.
 
 정리하면, "PDF 엔진"이라는 인터페이스 하나와 구현 둘을 둔다.
 
@@ -66,9 +66,9 @@ class PdfEngine(Protocol):
     def normalize(self, src: Path, filename: str, method: str, out: Path, hints: bool = True, xlsx: dict | None = None) -> dict: ...
 ```
 
-## 4. 어디에 두나: 별도 MIT 패키지 (제안)
+## 4. 어디에 두나: 이 저장소의 `backend/app/engines/` (결정)
 
-두 앱이 함께 쓰므로 앱 저장소 밖의 **작은 MIT 패키지**(가칭 `docengine`, 별도 저장소)로 만든다.
+처음 제안은 별도 저장소의 작은 MIT 패키지(가칭 `docengine`)였다. 결정(8절 1)에 따라 **당분간 이 저장소 안 `backend/app/engines/`**에 두고, 나머지 앱 코드를 import하지 않게 해서 나중에 그대로 떼어 낼 수 있게 한다(시험 `test_engine_package_imports_nothing_else_from_the_app`). 아래 표의 모듈 이름은 떼어 낼 때의 이름이고, 지금 위치는 9절에 있다.
 
 | 모듈 | 내용 |
 |---|---|
@@ -120,21 +120,58 @@ PyMuPDF를 퍼미시브 라이브러리로 바꾸면 다음이 다를 수 있다
 
 ## 7. 단계
 
-| 단계 | 할 일 | 끝났다는 기준 |
+| 단계 | 할 일 | 끝났다는 기준 | 상태 |
+|---|---|---|---|
+| 0 | ToolPDF 0.2.0 옵션 연결 | 표 옵션이 쪽 분석·추출에 함께 감, 옛 엔진 대체, 시험 | 완료 |
+| 1 | 인터페이스와 conformance 시험. ToolPDF 결과를 기준으로 | ToolPDF 클라이언트가 conformance를 통과 | 완료. 기준 정답 파일 대신 시험 때 띄우는 ToolPDF와 바로 비교 |
+| 2 | ToolPDF 클라이언트를 엔진 패키지로 옮기고 앱이 `PdfEngine`을 쓰게 함. `RAG_PDF_ENGINE`, 상태 화면, 근거 | 앱 시험 전부 통과(두 전송 방식), 동작 변화 없음 | 완료 |
+| 3 | 내장 엔진 1: `info`, `text`, `render`, `profile` | conformance의 해당 부분 통과 | 완료 |
+| 4 | 내장 엔진 2: `extract`(제목·본문·표·그림 영역·잘라내기) | conformance 통과, 5절 위험 항목 시험 | 완료. 위험 1(행 이름 열)은 고침, 위험 2(OCR 글자층)는 남음(9절) |
+| 5 | 내장 엔진 3: `normalize`(이미지, Office 자체 렌더링, LibreOffice) | Office 시험 통과, `hints` 같음 | 완료. 앱 시험 전체가 `RAG_PDF_ENGINE=local`로도 통과 |
+| 6 | 두 엔진 비교 평가, 배포 묶음에 "ToolPDF 없는" 형태 추가 | 평가 결과를 HANDOFF 7절에, 묶음 시험 | 묶음 완료(WSL Docker에서 설치·처리 확인). 검색 평가(`eval_retrieval.py`) 비교는 남음 |
+| 7 | 엔진 패키지를 별도 저장소로 떼어 다른 앱이 씀 | 그 앱에서 conformance와 앱 시험 통과 | 필요할 때 |
+
+## 8. 결정 (2026-10-10)
+
+1. **패키지 위치:** 당분간 이 저장소 안 `backend/app/engines/`. 앱의 다른 코드를 import하지 않게 해서 나중에 떼어 낸다.
+2. **앱과 배포:** 앱은 나누지 않는다. **배포 형태만 둘**이다. ToolPDF와 함께(지금 묶음), ToolPDF 없이 내장 엔진만(`build_offline_bundle.py --pdf-engine local`, `setup_local.bat local`, `start_local.bat local`).
+3. **기본 엔진:** `auto`. ToolPDF가 응답하면 ToolPDF, 아니면 내장 엔진. 실행마다 고른 엔진과 이유를 근거(`pdf_engine_auto`)로 남긴다.
+4. **암호 PDF:** 지원한다. 업로드 때(`password` 폼 필드) 또는 나중에(`PUT /api/documents/{id}/password`, 실패한 실행 화면의 입력란) 받고, 두 엔진 모두 `options.document.password`로 연다.
+5. **내장 엔진의 품질 목표:** 아직 숫자로 정하지 않았다. 9절의 비교로 시작한다. 실제 운영 문서로 `eval_retrieval.py`를 두 엔진으로 돌린 뒤 정한다.
+
+## 9. 구현 결과 (2026-10-10)
+
+**위치**
+
+| 파일 | 내용 |
+|---|---|
+| `backend/app/engines/base.py` | `PdfEngine` 프로토콜, `EngineError`·`PasswordError`, 옵션 정의(`OPTION_SPEC`: 이름, 기본값, 범위)와 검사(`resolve_options`), `options_schema()`(ToolPDF `GET /v1/options`와 같은 모양) |
+| `backend/app/engines/toolpdf.py` | ToolPDF HTTP 클라이언트(`ToolPDFEngine`). 403은 `PasswordError`. 0.1.x 엔진에는 예전 요청 |
+| `backend/app/engines/local/` | 내장 엔진(`LocalEngine`): `pdf.py`(열기·암호·특징·표·요소·그림 영역·렌더), `office.py`(docx·pptx·xlsx 자체 렌더링과 hints), `pdfgen.py`(이미지 → PDF, 한글 글꼴) |
+| `backend/app/tools/engine.py` | 앱 쪽 연결: `RAG_PDF_ENGINE` 선택(auto는 실행 시작 때 30초 간격으로 다시 확인), 규칙의 엔진 옵션, 문서 비밀번호(PDF 경로로 찾음), 파서 이름 → 추출 모드 |
+| `backend/tests/test_engine_conformance.py` | 두 엔진에 같은 시험(21개): 형식, 쪽 라벨, 표 칸, 제목, 그림 영역, 렌더, 옵션 검사, 괘선 없는 표, 암호 PDF, 이미지·Office 변환 |
+| `backend/tests/test_engine_select.py` | 선택(auto·toolpdf·local), 내장 엔진으로 전체 실행, API로 암호 PDF, 패키지 독립성, 의존성 라이선스 검사 |
+
+**측정: 공개 문서 10개(`evals/samples`, 50쪽), 같은 규칙, VLM 없이**
+
+| 항목 | ToolPDF 0.2.0 (PyMuPDF 1.28.2) | 내장 엔진 |
 |---|---|---|
-| 0 | 이번 작업: ToolPDF 0.2.0 옵션 연결(완료, 2026-10-10) | 표 옵션이 쪽 분석·추출에 함께 감, 옛 엔진 대체, 시험 |
-| 1 | 인터페이스와 conformance 시험. 지금 ToolPDF 결과를 기준 정답으로 저장 | ToolPDF 클라이언트가 conformance를 통과 |
-| 2 | `docengine` 패키지로 ToolPDF 클라이언트를 옮기고 앱이 `PdfEngine`을 쓰게 함. `RAG_PDF_ENGINE`, 상태 화면, 근거 | 앱 시험 전부 통과(두 전송 방식), 동작 변화 없음 |
-| 3 | 내장 엔진 1: `info`, `text`, `render`, `profile` | conformance의 해당 부분 통과 |
-| 4 | 내장 엔진 2: `extract`(제목·본문·표·그림 영역·잘라내기) | conformance 통과, 5절 위험 항목 시험 통과 |
-| 5 | 내장 엔진 3: `normalize`(이미지, Office 자체 렌더링, LibreOffice) | Office 시험 통과, `hints` 같음 |
-| 6 | 두 엔진 비교 평가와 기본값 결정, 배포 묶음에 "ToolPDF 없는" 형태 추가 | 평가 결과를 HANDOFF 7절에, 묶음 시험 |
-| 7 | 다른 MIT 앱이 `docengine`을 씀 | 그 앱에서 conformance와 앱 시험 통과 |
+| 쪽 라벨(규칙 분류) | 기준 | **50쪽 모두 같음** |
+| 표 수 | 20 | 20 (문서마다 같음) |
+| 그림 영역 수 | 40 | 40 |
+| 글자 수(요소 + 대체 텍스트) | 기준 | 대부분 ±3%. `ko_chart_kostat`은 73%(PyMuPDF가 병합 칸을 더 많이 채워 반복이 많음) |
+| 제목·본문 요소 수 | 기준 | 일반 문서는 비슷(예: nist 5/50 대 7/43, docling 14/101 대 10/98). **오래된 OCR 글자층(`en_scan_naca1135`)은 제목이 588 대 149**: 단어마다 따로 블록이 된다 |
+| 시간(쪽 분석 + 추출) | 문서당 0.3~3.4초 | 문서당 0.1~2.8초 (작은 문서, ToolPDF 프로세스 4개) |
 
-## 8. 정할 것
+맞추면서 바꾼 것:
+- `drawings`(선 개수)는 PDFium의 경로 객체 수로 센다. pdfminer는 하위 경로가 여러 개인 경로를 조각마다 세서 로고가 있는 첫 쪽이 26~35개 많았고, 그 때문에 한 쪽이 `diagram`(기준 120)으로 바뀌었다. PDFium 수는 PyMuPDF와 거의 같다.
+- 바깥 세로선이 없는 표: 가상 테두리를 넣는 행 높이 한도를 80pt에서 400pt로 올렸다. 행 하나에 여러 줄이 든 통계표에서 왼쪽 행 이름 열(전국, 서울 …)과 오른쪽 열을 잃었다(5절 위험 1).
+- 글자 없는 격자(차트 눈금선)는 표가 아니다. 버리지 않으면 그 차트가 그림 영역에서 빠진다.
+- 줄 묶기 `line_margin` 0.8(pdfminer 기본 0.5): 문단이 ToolPDF와 비슷하게 한 블록이 된다. `char_margin`은 2.0 그대로다. 3 이상이면 간격 11~17pt인 두 단이 한 줄로 붙는다.
+- 같은 크기라도 떨어져 있는 제목 줄, 크기가 다른 제목 줄은 나눈다(문서 제목과 첫 절 제목).
 
-1. **패키지 이름과 저장소:** 가칭 `docengine`, 별도 저장소(MIT). 아니면 당분간 이 저장소 안 `backend/app/engines/`에 두고 나중에 떼어 낼지.
-2. **두 앱의 관계:** 내장 엔진이 생기면 이 앱(IngestLens-v2)을 `RAG_PDF_ENGINE=local`로 띄우는 것만으로 ToolPDF 없는 MIT 배포가 된다. 그러면 MIT 앱을 따로 만들지 않고 **코드 하나에 배포 형태만 둘**로 할 수도 있다. 앱을 따로 둘 이유(화면, 기능 차이)가 있는지 정한다.
-3. **기본 엔진:** `auto`(ToolPDF가 있으면 ToolPDF)로 할지, 명시하게 할지.
-4. **내장 엔진의 품질 목표:** ToolPDF와 같은 평가 세트에서 몇 % 이내면 받아들일지.
-5. **암호 PDF:** 문서마다 비밀번호를 받을 화면·API(업로드 때 입력, 실행 때 전달)를 만들지. 두 엔진 모두 지원할 수 있다.
+**남은 차이와 할 일**
+- 오래된 OCR 글자층의 단어 쪼개짐(5절 위험 2): 단 붙음 위험 없이 고칠 방법을 찾지 못했다. 그런 문서는 ToolPDF로 처리하거나 `vlm_ocr`로 다시 읽는다.
+- 쪽 처리는 앱 프로세스의 스레드에서 돈다(PDFium 호출은 잠금으로 한 번에 하나). 큰 문서는 `bench_large.py`로 재고, 느리면 프로세스 풀을 붙인다.
+- 내장 엔진의 Office 자체 렌더링은 ReportLab이라 모양이 ToolPDF(PyMuPDF Story)와 조금 다르다. hints(슬라이드 제목, 노트, 차트, 시트 행)는 같다(conformance 시험).
+- `eval_vlm.py`의 데이터 세트 버전은 쪽 렌더의 해시라, 엔진이 다르면 버전도 다르다. 비교는 같은 엔진끼리 한다.

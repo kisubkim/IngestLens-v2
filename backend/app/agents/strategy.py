@@ -13,7 +13,7 @@ from ..models import PageProfile
 from ..tools.chunking import CHARS_PER_TOKEN
 from ..tools.embedding import count_tokens
 from ..tools.pdf import body_font_size
-from ..tools.toolpdf import engine
+from ..tools.engine import engine
 from ..tools.vlm import VLMClient
 from .common import PipelineState, update_summary
 

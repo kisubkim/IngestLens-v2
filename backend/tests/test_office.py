@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.tools.chunking import split_table
-from app.tools.toolpdf import engine
+from app.tools.engine import engine
 
 from .minipdf import write_pdf
 from .office_fixtures import make_docx, make_pptx, make_xlsx

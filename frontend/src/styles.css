@@ -77,6 +77,9 @@ h4 { font-size: 12px; margin: 14px 0 6px; color: var(--muted); }
 .doc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .placeholder { color: var(--muted); padding: 40px; text-align: center; }
 .error-box { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; }
+.password-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.password-form input { min-width: 200px; }
+.password-form .muted { flex-basis: 100%; font-size: 12px; }
 
 .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--line); color: var(--muted); }
 .badge.running { background: color-mix(in srgb, var(--run) 18%, transparent); color: var(--run); }

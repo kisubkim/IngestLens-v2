@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Singularity/Apptainer 로 IngestLens 를 실행한다. root 권한도 Docker도 필요 없다. 인터넷도 필요 없다.
 #
-#   ./singularity.sh start                PDF 엔진, 모델 서버, 앱을 모두 시작 (백그라운드)
+#   ./singularity.sh start                PDF 엔진, 모델 서버, 앱을 모두 시작 (백그라운드). RAG_PDF_ENGINE=local 이면 PDF 엔진은 건너뛴다
 #   ./singularity.sh start-pdf            PDF 엔진(ToolPDF)만 시작
 #   ./singularity.sh start-model          모델 서버(임베딩 + reranker, GPU 프로세스 1개)만 시작
 #   ./singularity.sh start-app            앱만 시작
@@ -38,6 +38,7 @@ start_model() {
 }
 
 start_pdf() {
+  if [ "${RAG_PDF_ENGINE:-auto}" = "local" ]; then echo "RAG_PDF_ENGINE=local: ToolPDF 없이 앱 안의 내장 PDF 엔진을 씁니다."; return; fi
   if running pdf; then echo "PDF 엔진이 이미 실행 중입니다 (pid $(cat pdf.pid))."; return; fi
   [ -f "$TOOLPDF_SIF" ] || { echo "[오류] $TOOLPDF_SIF 가 없습니다." >&2; exit 1; }
   mkdir -p "$INGESTLENS_DATA_DIR" "$TOOLPDF_CACHE_DIR"
@@ -62,7 +63,7 @@ start_app() {
   nohup "$SING" run --cleanenv \
     --bind "$INGESTLENS_DATA_DIR:/data" --bind "$MODELS_YAML:/config/models.yaml:ro" \
     --env RAG_DATA_DIR=/data --env RAG_SETTINGS_FILE=/data/settings.local.yaml \
-    --env RAG_MODELS_FILE=/config/models.yaml --env "RAG_API_KEY=${RAG_API_KEY:-}" \
+    --env RAG_MODELS_FILE=/config/models.yaml --env "RAG_API_KEY=${RAG_API_KEY:-}" --env "RAG_PDF_ENGINE=${RAG_PDF_ENGINE:-auto}" \
     --env "RAG_TOOLPDF_URL=http://127.0.0.1:${TOOLPDF_PORT:-8095}" --env RAG_TOOLPDF_TRANSFER=shared \
     --env "RAG_TOOLPDF_API_KEY=${TOOLPDF_API_KEY:-}" \
     --env "INGESTLENS_PORT=${INGESTLENS_PORT:-8000}" "$APP_SIF" >> app.log 2>&1 &
@@ -86,7 +87,8 @@ case "${1:-}" in
       if running $n; then echo "$n: 실행 중 (pid $(cat $n.pid))"; else echo "$n: 실행 중 아님"; fi
     done
     if command -v curl >/dev/null 2>&1; then
-      echo "PDF 엔진:  $(curl -s "http://127.0.0.1:${TOOLPDF_PORT:-8095}/v1/health" || echo '응답 없음')"
+      if [ "${RAG_PDF_ENGINE:-auto}" = "local" ]; then echo "PDF 엔진:  앱 안의 내장 엔진 (RAG_PDF_ENGINE=local)"
+      else echo "PDF 엔진:  $(curl -s "http://127.0.0.1:${TOOLPDF_PORT:-8095}/v1/health" || echo '응답 없음')"; fi
       echo "모델 서버: $(curl -s "http://127.0.0.1:${MS_PORT:-8090}/health" || echo '응답 없음')"
       echo "앱:        $(curl -s "http://127.0.0.1:${INGESTLENS_PORT:-8000}/api/health" || echo '응답 없음')"
     else

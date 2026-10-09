@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from ..config import settings
 from ..db import session
 from ..models import Chunk, Document
-from ..tools.toolpdf import engine
+from ..tools.engine import engine
 
 router = APIRouter(prefix="/api/chunks", tags=["chunks"])
 

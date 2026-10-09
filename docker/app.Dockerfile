@@ -1,5 +1,7 @@
 # IngestLens 앱 이미지: 프론트 빌드 + FastAPI 백엔드. 로컬 개발(docker-compose.yml)과 오프라인 배포에 같은 이미지를 쓴다.
-# PDF 라이브러리는 넣지 않는다. 문서를 PDF로 바꾸고 읽고 그리는 일(LibreOffice 포함)은 PDF 엔진 ToolPDF 가 한다.
+# PDF 엔진은 둘 중 하나다(RAG_PDF_ENGINE, 기본 auto): 별도 프로그램 ToolPDF(AGPL, 이 이미지에 없음), 또는 이미지 안의
+# 내장 엔진(pypdfium2, pdfplumber 등 퍼미시브 라이선스만). 내장 엔진이 Office 문서를 그릴 때 쓰는 한글 글꼴로 나눔 글꼴
+# (SIL OFL 1.1)을 넣는다. LibreOffice 는 넣지 않는다(.doc, .ppt, .hwp 는 ToolPDF 쪽 LibreOffice 로 처리).
 #
 # docker/certs/*.crt (백신·프록시가 HTTPS 를 가로채는 빌드 PC 용)는 npm·pip 가 패키지를 받는 동안에만 bind mount 로 쓴다.
 # 이미지 레이어에는 남지 않으므로, 이 PC에서 빌드한 이미지를 그대로 운영 서버에 배포해도 된다.
@@ -27,6 +29,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     RAG_SETTINGS_FILE=/data/settings.local.yaml \
     INGESTLENS_VERSION=${VERSION}
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-nanum && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.txt backend/requirements.txt
 RUN --mount=type=bind,source=docker/certs,target=/tmp/certs \
     cat /etc/ssl/certs/ca-certificates.crt /tmp/certs/*.crt > /tmp/ca.pem 2>/dev/null; \

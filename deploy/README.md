@@ -17,7 +17,7 @@
   - 모델 서버는 두 모델을 **한 프로세스**에 올리므로, GPU에는 CUDA 컨텍스트가 하나만 생긴다.
 - **API:** 모델 서버는 vLLM과 같은 형식을 제공한다(`/v1/embeddings`, `/v1/rerank`, `/tokenize`, `/v1/models`). 앱 쪽은 주소만 적으면 된다.
 - **메모리:** 두 모델을 float16으로 올리면 GPU 메모리를 약 2.3GB 쓴다. 80GB GPU면 배치를 크게 잡아도 여유가 있다.
-- **PDF 엔진:** 앱에는 PDF 라이브러리가 없다. 문서를 PDF로 바꾸고 읽고 그리는 일은 ToolPDF가 HTTP API로 한다. 앱과 같은 데이터 폴더를 함께 마운트해서 파일을 복사하지 않고 경로로 주고받는다(공유 폴더 방식). ToolPDF가 없으면 문서를 처리할 수 없다.
+- **PDF 엔진:** 묶음은 두 형태다. 기본 묶음(`ingestlens-<버전>-offline.tar`)은 ToolPDF(AGPL, PyMuPDF)를 함께 넣고, 앱이 ToolPDF의 HTTP API로 문서를 PDF로 바꾸고 읽고 그린다. 앱과 같은 데이터 폴더를 함께 마운트해서 파일을 복사하지 않고 경로로 주고받는다(공유 폴더 방식). **ToolPDF 없는 묶음**(`ingestlens-<버전>-local-offline.tar`, `build_offline_bundle.py --pdf-engine local`)은 앱 안의 내장 엔진(pypdfium2, pdfplumber 등 퍼미시브 라이선스만)으로 처리한다. 앱 이미지는 같고, `.env`의 `RAG_PDF_ENGINE`과 compose 파일만 다르다(아래 "ToolPDF 없는 묶음").
 
 반입할 것:
 
@@ -65,6 +65,18 @@ python scripts/build_offline_bundle.py --singularity --no-docker   # Singularity
 - `toolpdf/` 폴더는 ToolPDF와 PyMuPDF(둘 다 AGPL-3.0)의 소스를 함께 담고 있다. 묶음을 다른 곳에 넘길 때 이 폴더를 빼지 않는다(`NOTICE.md` 2절, `toolpdf/BUNDLE.md`).
 - `--singularity`는 GPU용 모델 서버 이미지(CUDA 포함 torch)를 빌드하므로 묶음이 수 GB로 커진다.
 - `--no-docker`는 앱 Docker 이미지(`images/`)를 빼고 Singularity 이미지만 넣는다. 그 묶음으로는 `install.sh`(Docker)를 쓸 수 없다. 앱 Docker 이미지는 약 150MB라 크기 차이는 크지 않다. `toolpdf/` 폴더는 소스 제공 묶음이라 항상 통째로 넣는다.
+### 2-1. ToolPDF 없는 묶음
+
+```bash
+python scripts/build_offline_bundle.py --pdf-engine local                 # Docker용
+python scripts/build_offline_bundle.py --pdf-engine local --singularity   # + .sif
+```
+
+- 결과는 `release/ingestlens-<버전>-local-offline.tar`다. ToolPDF 배포 폴더가 필요 없고 `toolpdf/` 폴더가 들어가지 않는다. 묶음 전체가 MIT 등 퍼미시브 라이선스다(`NOTICE.md` 6절).
+- 앱 이미지는 기본 묶음과 같다. 다른 것은 `docker-compose.yml`(앱만, 원본 `deploy/docker-compose.local-engine.yml`), `.env`와 `singularity.env`의 `RAG_PDF_ENGINE=local`이다. 설치와 실행은 5절, 5-B절과 같고, `./singularity.sh start`는 PDF 엔진을 건너뛴다.
+- 처리 품질: 공개 문서 50쪽에서 쪽 분류, 표, 그림 영역이 ToolPDF와 같았다. 오래된 스캔 문서의 OCR 글자층은 ToolPDF보다 제목 조각이 많이 생긴다(`docs/ENGINE_PLAN.md` 9절). `.doc`, `.ppt`, `.hwp`는 LibreOffice가 없어 처리하지 않는다(docx, pptx, xlsx, PDF, 이미지는 처리).
+- 기본 묶음에서도 `.env`의 `RAG_PDF_ENGINE`을 `local`로 바꾸면 ToolPDF를 쓰지 않는다. 기본값 `auto`는 ToolPDF가 응답하지 않을 때 내장 엔진으로 처리한다(상태 화면의 PDF 엔진이 "주의").
+
 - 빌드 PC에서는 공식 Apptainer 컨테이너(`ghcr.io/apptainer/apptainer`)로 `.sif`를 만든다. 빌드 PC에 Singularity를 설치할 필요는 없다.
 - torch는 CUDA 12.8용(`cu128`)으로 넣는다. A100, H100을 지원한다. 서버의 NVIDIA 드라이버가 오래되어 모델 서버가 GPU를 못 잡으면 `--torch-cuda cu126`으로 다시 만든다.
 
@@ -164,7 +176,7 @@ vi models.singularity.yaml  # VLM 주소와 모델 이름 (임베딩·reranker�
 - **GPU:** `--nv`로 호스트 드라이버를 연결한다. GPU를 쓰는 것은 모델 서버 안의 Python 하나뿐이라 "프로세스 1개" 조건에 맞는다.
 - **명령어:** `apptainer`와 `singularity` 중 있는 것을 쓴다. `SINGULARITY`에 경로를 직접 적어도 된다.
 
-이미 운영 중인 vLLM 환경에서 모델 서버를 띄우고 싶으면 4절의 `model-server.sh`를 쓰고, ToolPDF와 앱만 `./singularity.sh start-pdf`, `./singularity.sh start-app`으로 띄우면 된다.
+이미 운영 중인 vLLM 환경에서 모델 서버를 띄우고 싶으면 4절의 `model-server.sh`를 쓰고, ToolPDF와 앱만 `./singularity.sh start-pdf`, `./singularity.sh start-app`으로 띄우면 된다. ToolPDF 없는 묶음(`RAG_PDF_ENGINE=local`)은 `start-pdf`가 아무것도 하지 않는다.
 
 ## 6. 확인
 
@@ -174,7 +186,7 @@ docker compose ps
 docker compose logs -f app
 ```
 
-- 브라우저로 `http://<서버 주소>:8000/#status`를 연다. PDF 엔진, 임베딩, reranker, VLM이 모두 "정상"인지 본다. PDF 엔진이 "오류"면 `docker compose logs toolpdf`(Singularity는 `./singularity.sh logs pdf`)를 본다.
+- 브라우저로 `http://<서버 주소>:8000/#status`를 연다. PDF 엔진, 임베딩, reranker, VLM이 모두 "정상"인지 본다. PDF 엔진이 "오류"면 `docker compose logs toolpdf`(Singularity는 `./singularity.sh logs pdf`)를 본다. "PDF 엔진 (내장)"이 "주의"면 `auto`에서 ToolPDF가 응답하지 않아 내장 엔진으로 처리하고 있다는 뜻이다. 실행의 "근거" 탭 `PDF engine`에도 어느 엔진으로 처리했는지 남는다.
   - "주의": 서버는 응답하지만 `models.yaml`의 모델 이름이 그 서버의 이름과 다르다는 뜻이다.
   - "오류": 연결하지 못한다는 뜻이다. 방화벽, 주소, 포트를 확인한다.
 - 문서 하나를 올려 실행해 본다. 실행의 "근거" 탭에서 다음을 확인한다.
@@ -278,4 +290,5 @@ docker run -d --name open-webui -p 3000:8080 \
 
 - IngestLens는 MIT License다(`LICENSE`, `NOTICE.md`). 저작권 표시와 라이선스 문구만 남기면 고쳐 쓰거나 배포하는 데 제약이 없다.
 - PDF 엔진 ToolPDF는 AGPL-3.0인 별도 프로그램이다. 고치지 않고 쓰면 되고, 고쳐서 네트워크로 제공하면 고친 소스를 제공해야 한다. ToolPDF를 묶음에 넣을 때는 ToolPDF의 `LICENSE`, `NOTICE.md`를 함께 넣는다(`NOTICE.md` 2절).
+- ToolPDF 없는 묶음(2-1절)에는 AGPL 구성 요소가 없다. 내장 엔진의 라이브러리(pypdfium2와 PDFium에 든 라이브러리, pdfplumber 등)와 나눔 글꼴(SIL OFL)의 라이선스는 `NOTICE.md` 3절, 6절에 있다.
 - 이미지 안의 Python 패키지 라이선스는 `NOTICE.md`에 있다.

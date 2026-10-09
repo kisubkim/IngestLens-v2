@@ -22,6 +22,8 @@ export interface Doc {
   created_at: string;
   latest_run: Run | null;
   duplicate?: boolean;
+  /** An encrypted PDF's password is stored (the password itself is never sent back). */
+  has_password?: boolean;
 }
 
 // Open WebUI stores uploads as "<uuid4>_<original name>" and sends that name to the document loader.
@@ -402,6 +404,12 @@ export const api = {
     for (const file of files) body.append("files", file);
     return fetch("/api/documents/batch", { method: "POST", body }).then(json<Doc[]>);
   },
+  setPassword: (docId: string, password: string) =>
+    fetch(`/api/documents/${docId}/password`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    }).then(json<Doc>),
   startRun: (docId: string) => fetch(`/api/documents/${docId}/runs`, { method: "POST" }).then(json<Run>),
   startRuns: (docIds: string[]) =>
     fetch("/api/documents/runs", {

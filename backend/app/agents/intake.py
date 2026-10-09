@@ -1,4 +1,5 @@
-"""Intake agent: detect the real format and normalize everything to PDF (conversion runs on the PDF engine)."""
+"""Intake agent: pick the PDF engine, detect the real format and normalize everything to PDF (conversion runs on
+the PDF engine). An encrypted PDF opens with the document's stored password."""
 
 import asyncio
 from pathlib import Path
@@ -8,7 +9,7 @@ from ..db import session
 from ..events import emit_event, record_decision
 from ..models import Document
 from ..tools.office import NATIVE_FORMATS, OFFICE_EXT, detect
-from ..tools.toolpdf import engine
+from ..tools.engine import PasswordError, engine
 from .common import PipelineState, get_document, update_summary
 
 STEP = "intake"
@@ -23,6 +24,7 @@ async def intake(state: PipelineState) -> dict:
     out_dir = settings.data_dir / "converted" / doc.id
     inputs = {**info, "size_mb": round(doc.size / 2**20, 2)}
 
+    await asyncio.to_thread(_record_engine, run_id)
     if info["mismatch"]:
         emit_event(run_id, "warning", STEP, f"Extension .{info['extension']} does not match content ({info['magic_mime']})", info)
 
@@ -30,7 +32,10 @@ async def intake(state: PipelineState) -> dict:
     alternatives: list = []
     if fmt == "pdf":
         pdf, rule, choice = src, "magic_pdf", "PDF: parse natively"
-        pdf_info = await asyncio.to_thread(engine().info, pdf)
+        try:
+            pdf_info = await asyncio.to_thread(engine().info, pdf, doc.password)
+        except PasswordError:
+            raise ValueError("wrong PDF password: set the right one (document password) and run again") from None
     elif fmt == "image":
         pdf = out_dir / (src.stem + ".pdf")
         pdf_info = await asyncio.to_thread(engine().normalize, src, src.name, "image", pdf)
@@ -41,7 +46,12 @@ async def intake(state: PipelineState) -> dict:
         raise ValueError(f"Unsupported format: .{info['extension']} ({info['magic_mime']})")
 
     if pdf_info["encrypted"]:
-        raise ValueError("PDF is password protected")
+        if pdf_info["page_count"] is None:
+            raise ValueError("PDF is password protected: set its password (document password) and run again")
+        record_decision(run_id, STEP, "encrypted PDF", "open with the document password", rule_id="pdf_password",
+                        inputs={"encrypted": True, "engine": engine().name}, confidence=1.0,
+                        reasoning="The PDF needs a password to open. Every engine call for this document sends the stored "
+                                  "password; it is not written to events or decisions.")
     page_count = pdf_info["page_count"]
     inputs["page_count"] = page_count
 
@@ -58,6 +68,29 @@ async def intake(state: PipelineState) -> dict:
         d.format, d.pdf_path, d.page_count = fmt, settings.stored_path(pdf), page_count
 
     return {"pdf_path": str(pdf), "format": fmt, "page_count": page_count, "hints": hints}
+
+
+def _record_engine(run_id: str) -> None:
+    """Which PDF engine this run uses and why (RAG_PDF_ENGINE; auto asks ToolPDF first)."""
+    eng = engine()
+    impl = eng.select(recheck=True)
+    sel = eng.selection()
+    try:
+        version = impl.health().get("version")
+    except Exception:
+        version = None
+    other = "local" if impl.name == "toolpdf" else "toolpdf"
+    if sel["mode"] != "auto":
+        why = f"RAG_PDF_ENGINE={sel['mode']}"
+    else:
+        why = "ToolPDF did not answer" if impl.name == "local" else "ToolPDF answered and is preferred (PyMuPDF)"
+    update_summary(run_id, "engine", {"engine": impl.name, "version": version, "mode": sel["mode"]})
+    record_decision(run_id, STEP, "PDF engine", f"{impl.name} ({version})",
+                    rule_id="pdf_engine_auto" if sel["mode"] == "auto" else "pdf_engine_configured",
+                    inputs={"mode": sel["mode"], "engine": impl.name, "version": version, "reason": sel["reason"]},
+                    alternatives=[{"choice": other, "reason_rejected": why}], confidence=1.0,
+                    reasoning="Both engines follow the same contract (ToolPDF API 0.2.0). ToolPDF uses PyMuPDF; the local "
+                              "engine uses permissive libraries inside the app (pypdfium2, pdfplumber).")
 
 
 async def _office(run_id: str, src: Path, fmt: str, out_dir: Path, inputs: dict):

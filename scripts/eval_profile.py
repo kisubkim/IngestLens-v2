@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from app.config import rules_cfg  # noqa: E402
 from app.tools.pdf import classify  # noqa: E402
-from app.tools.toolpdf import engine  # noqa: E402  (PDF engine ToolPDF, RAG_TOOLPDF_URL)
+from app.tools.engine import engine  # noqa: E402  (PDF engine ToolPDF, RAG_TOOLPDF_URL)
 
 
 def load_pages(labels_path: Path) -> list[dict]:

@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # 오프라인 서버에서 배포 묶음을 설치·시작한다. 인터넷이 필요 없다.
-#   ./install.sh    이미지 불러오기 + 앱과 PDF 엔진(ToolPDF) 시작. 모델 서버는 model-server.sh 로 따로 띄운다(README.md).
+#   ./install.sh    이미지 불러오기 + 앱과 PDF 엔진(ToolPDF, 들어 있는 묶음만) 시작. 모델 서버는 model-server.sh 로 따로 띄운다(README.md).
 set -e
 cd "$(dirname "$0")"
 
@@ -34,4 +34,8 @@ fi
 docker compose up -d
 echo
 echo "시작했습니다. 상태 확인: curl http://localhost:${INGESTLENS_PORT:-8000}/api/health"
-echo "화면: http://<서버 주소>:${INGESTLENS_PORT:-8000}  · 백엔드 상태: /#status  · 로그: docker compose logs -f app (PDF 엔진: toolpdf)"
+if [ "${RAG_PDF_ENGINE:-auto}" = "local" ]; then
+  echo "화면: http://<서버 주소>:${INGESTLENS_PORT:-8000}  · 백엔드 상태: /#status  · 로그: docker compose logs -f app (PDF 엔진: 앱 안의 내장 엔진)"
+else
+  echo "화면: http://<서버 주소>:${INGESTLENS_PORT:-8000}  · 백엔드 상태: /#status  · 로그: docker compose logs -f app (PDF 엔진: toolpdf)"
+fi

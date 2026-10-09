@@ -11,8 +11,8 @@ from ..config import rules_base, rules_cfg
 from ..db import session
 from ..events import emit_event, record_decision
 from ..models import PageProfile
+from ..tools.engine import engine, engine_rules
 from ..tools.pdf import classify
-from ..tools.toolpdf import engine, engine_rules
 from ..tools.vlm import VLMClient
 from .common import PipelineState, update_summary
 
@@ -64,13 +64,13 @@ async def _vlm_review(run_id: str, pdf_path: str, pages: list[tuple[int, str, fl
 
 def _record_engine_options(run_id: str) -> None:
     """Which table and image options the PDF engine got (they shape table counts here and extraction later)."""
-    support = engine().option_support()
+    support = engine().options_schema()
     chosen = engine_rules()
     tables = chosen.get("tables") or {}
     if support:
         record_decision(run_id, STEP, "PDF engine options", f"tables: {tables.get('strategy')}"
                         + ("" if tables.get("enabled", True) else " (off)"), rule_id="engine_options",
-                        inputs={"engine_version": support.get("version"), **chosen}, confidence=1.0,
+                        inputs={"engine": engine().name, "engine_version": support.get("version"), **chosen}, confidence=1.0,
                         reasoning="Table and image options from the rules (engine.*) go to profiling and extraction, "
                                   "so both steps see the same tables.")
         return

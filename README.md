@@ -5,7 +5,12 @@ Explainable RAG document ingestion: parse, chunk, embed — with the evidence be
 웹에서 문서를 선택하면 여러 agent가 다음 순서로 처리한다: 형식 판별 → 콘텐츠 분석 → 전략 결정 → 파싱 → 청킹 → 임베딩.
 각 단계의 진행 상황과 결정 근거를 웹에서 실시간으로 볼 수 있다. 외부 API 없이 직접 띄운 vLLM(OpenAI 호환) endpoint만 사용하므로, 인터넷이 없는 환경에서도 동작한다.
 
-PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출, 쪽 이미지)는 별도 프로그램인 PDF 엔진 **[ToolPDF](https://github.com/kisubkim/ToolPDF)**가 HTTP API로 맡는다. 이 저장소에는 PDF 라이브러리가 없다. 앱을 실행하거나 테스트하려면 ToolPDF가 필요하다.
+PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출, 쪽 이미지, 암호 PDF 열기)는 PDF 엔진이 맡는다. 엔진은 둘 중 하나다(`RAG_PDF_ENGINE`, 기본 `auto`).
+
+- **[ToolPDF](https://github.com/kisubkim/ToolPDF)**: 별도 프로그램(AGPL-3.0, PyMuPDF)을 HTTP API로 부른다. 품질 기준이다.
+- **내장 엔진**: 앱 안에서 퍼미시브 라이선스 라이브러리(pypdfium2, pdfplumber 등)로만 처리한다. ToolPDF 없이 앱 하나로 동작하고, 배포물 전체가 퍼미시브 라이선스가 된다.
+
+`auto`는 ToolPDF가 응답하면 ToolPDF, 아니면 내장 엔진을 쓴다. 앱은 하나이고 배포 형태만 둘이다(ToolPDF와 함께, ToolPDF 없이). 두 엔진은 같은 인터페이스(ToolPDF API 0.2.0)를 따르고, 공개 문서 50쪽에서 쪽 분류·표·그림 영역이 같게 나온다(`docs/ENGINE_PLAN.md`). 테스트에는 ToolPDF가 필요하다(두 엔진을 비교한다).
 
 현재 상태: M1–M6 구현 완료. 로컬 GPU의 실제 모델(Ollama `qwen2.5vl:7b`, `bge-m3`, reranker 모델 서버)과 Open WebUI 연동까지 검증했다. 운영 vLLM과 큰 모델로는 아직 검증하지 않았다(`docs/HANDOFF.md` 1절).
 
@@ -13,9 +18,9 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 
 | 어디서 | 가이드 | 요약 |
 |---|---|---|
-| **Windows PC** | **`docs/WINDOWS.md`** | `setup_local.bat`(처음 한 번) → `start_local.bat` → http://localhost:8000. 실제 모델은 Windows용 Ollama로 연결 |
+| **Windows PC** | **`docs/WINDOWS.md`** | `setup_local.bat`(처음 한 번) → `start_local.bat` → http://localhost:8000. ToolPDF 없이: `setup_local.bat local`, `start_local.bat local`. 실제 모델은 Windows용 Ollama로 연결 |
 | Windows PC, 모델까지 Docker로 | `docs/WINDOWS.md` 7절 | WSL2의 Docker Engine으로 `start_test.bat` |
-| 인터넷 없는 리눅스 서버 | **`deploy/README.md`** | 배포 묶음 파일 하나로 `./install.sh`(Docker) 또는 `./singularity.sh start` |
+| 인터넷 없는 리눅스 서버 | **`deploy/README.md`** | 배포 묶음 파일 하나로 `./install.sh`(Docker) 또는 `./singularity.sh start`. 묶음은 ToolPDF와 함께, 또는 ToolPDF 없이(`--pdf-engine local`) |
 | Linux·macOS 개발 PC | 아래 "실행 (개발)" | 두 저장소를 받아 venv로 실행 |
 | Windows PC에서 Open WebUI까지 시험 | `docs/WINDOWS.md` 7-1절 | `start_webui_test.bat`: IngestLens 스택 + Open WebUI, 이미 떠 있으면 건너뜀 |
 | Open WebUI 연동 | `deploy/OPENWEBUI.md` | 문서 로더, 쪽 이미지 필터 |
@@ -25,15 +30,15 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 - 계획: `docs/PLAN.md`
 - 이어서 작업할 때 필요한 내용(상태, 반입 절차, 백로그, 함정): **`docs/HANDOFF.md`**
 - 에이전트 구성과 판단 기준(각 단계가 무엇을 어떤 규칙으로 정하는지): **`docs/AGENTS.md`**
-- PDF 엔진 인터페이스와 MIT 내장 엔진 계획(ToolPDF 없이 쓰기): `docs/ENGINE_PLAN.md`
+- PDF 엔진 인터페이스, 내장 엔진, 두 엔진 비교(ToolPDF 없이 쓰기): `docs/ENGINE_PLAN.md`
 - 평가와 튜닝: `evals/README.md`
-- 라이선스: MIT (`LICENSE`). PDF 엔진 ToolPDF(AGPL-3.0, 별도 프로그램), 의존성, 모델의 라이선스는 `NOTICE.md`
+- 라이선스: MIT (`LICENSE`). PDF 엔진 ToolPDF(AGPL-3.0, 별도 프로그램), 내장 엔진의 라이브러리, 의존성, 모델의 라이선스는 `NOTICE.md`
 
 ## 실행 (개발)
 
 Windows에서는 `setup_local.bat`, `start_local.bat`, `stop_local.bat`이 아래 과정을 대신한다(`docs/WINDOWS.md`). 직접 하려면 Python 3.12와 Node.js로 다음처럼 한다. 경로는 Linux·macOS 기준이고, Windows에서는 `.venv/bin/`을 `.venv/Scripts/`로 바꾼다.
 
-ToolPDF를 이 저장소 옆(`../ToolPDF`)에 받아 두고 먼저 띄운다. 설치와 실행은 ToolPDF의 README를 따른다.
+ToolPDF를 이 저장소 옆(`../ToolPDF`)에 받아 두고 먼저 띄운다. 설치와 실행은 ToolPDF의 README를 따른다. ToolPDF 없이 내장 엔진만 쓰려면 이 단계를 건너뛰고 `RAG_PDF_ENGINE=local`로 띄운다(`auto`도 ToolPDF가 없으면 내장 엔진을 쓴다).
 
 ```bash
 git clone https://github.com/kisubkim/ToolPDF ../ToolPDF
@@ -55,6 +60,8 @@ cd backend
 UI 개발: `cd frontend && npm run dev`. `/api`는 `127.0.0.1:8000`으로 proxy된다.
 
 ToolPDF를 다른 주소에 띄웠으면 `RAG_TOOLPDF_URL`을 정한다. 기본은 파일을 HTTP로 올리는 방식이라 두 프로그램이 폴더를 공유하지 않아도 된다.
+
+암호가 걸린 PDF는 비밀번호와 함께 올리거나(`password` 폼 필드), 실패한 실행 화면에서 비밀번호를 넣고 다시 실행한다. 비밀번호는 쪽 이미지를 만들 때도 써야 해서 DB에 저장되고, API 응답에는 나오지 않는다(`has_password`만).
 
 ## 첫 화면 (임베딩 DB 현황)
 

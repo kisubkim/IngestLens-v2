@@ -1,4 +1,4 @@
-"""PDF engine options (ToolPDF >= 0.2.0): the rules' engine.* reach profiling and extraction, change what the
+"""PDF engine options (ToolPDF >= 0.2.0 and the local engine): the rules' engine.* reach profiling and extraction, change what the
 engine finds (a table without ruling lines), and an engine without option support still gets the old request."""
 
 import copy
@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.config import rules_cfg
 from app.main import app
-from app.tools.toolpdf import engine
+from app.tools.engine import engine, toolpdf
 
 from .minipdf import write_pdf
 
@@ -42,7 +42,7 @@ def _tables(rules_tables: dict, pdf: Path) -> tuple[int, list[str]]:
 
 
 def test_engine_takes_options():
-    support = engine().option_support()
+    support = engine().options_schema()
     assert support and {"profile", "extract", "render"} <= set(support["endpoints"])
 
 
@@ -78,17 +78,18 @@ def test_run_records_the_engine_options(sample_pdf):
         assert d["rule_id"] == "engine_options" and d["inputs"]["tables"]["strategy"] == "lines" and d["inputs"]["engine_version"]
 
 
-def test_old_engine_gets_the_old_request(sample_pdf, monkeypatch):
+def test_old_engine_gets_the_old_request(sample_pdf, monkeypatch, pinned):
     """An engine without /v1/options: no `options` field anywhere, the 0.1.x extract fields, and a fallback decision."""
+    pinned("toolpdf")
     sent = []
-    real_post = engine().http.post
+    real_post = toolpdf().http.post
 
     def spy(url, *a, **kw):
         sent.append((url, kw.get("json") or {}))
         return real_post(url, *a, **kw)
 
-    monkeypatch.setattr(engine(), "option_support", lambda: None)
-    monkeypatch.setattr(engine().http, "post", spy)
+    monkeypatch.setattr(toolpdf(), "_options", None)
+    monkeypatch.setattr(toolpdf().http, "post", spy)
     with TestClient(app, client=LOCAL) as client:
         run = _run(client, sample_pdf)
     assert run["status"] == "succeeded", run["error"]

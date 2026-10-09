@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     toolpdf_api_key: str = ""
     toolpdf_transfer: str = "http"
     toolpdf_timeout_s: float = 600
+    # Which PDF engine: "toolpdf", "local" (inside the app, permissive libraries only) or "auto" (ToolPDF when it
+    # answers, else local). The local engine finds LibreOffice at soffice_path or on PATH and renders Office files
+    # with cjk_font (a TrueType file; empty = a system font).
+    pdf_engine: str = "auto"
+    soffice_path: str = ""
+    cjk_font: str = ""
     api_key: str = ""  # Bearer token for the ingest API (/api/ingest, Open WebUI loader); empty = no auth
     admin_hosts: str = ""  # extra IPs/CIDRs treated as "this machine" for settings changes (Docker bridge gateway)
     data_dir_hint: str = ""  # shown when data_dir is locked, e.g. how the Docker volume decides the data folder

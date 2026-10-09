@@ -1,6 +1,6 @@
 from app.config import rules_cfg
 from app.tools.figures import attach_captions
-from app.tools.toolpdf import engine
+from app.tools.engine import engine
 from app.tools.vlm_output import md_to_elements, parse_figure
 
 from .minipdf import write_pdf

@@ -57,6 +57,23 @@ _start_engine()
 
 
 @pytest.fixture
+def pinned(monkeypatch):
+    """Run the app on a chosen PDF engine for one test, whatever RAG_PDF_ENGINE says: pinned("auto" | "toolpdf" |
+    "local") or pinned(an engine object)."""
+    from app.tools import engine as engine_mod
+
+    def pin(which):
+        mode = which if isinstance(which, str) else which.name
+        e = engine_mod.AppEngine(mode)
+        monkeypatch.setattr(engine_mod, "engine", lambda: e)
+        for mod in ("app.agents.intake", "app.agents.profiler", "app.agents.parser", "app.agents.strategy",
+                    "app.api.documents", "app.api.chunks", "app.api.status"):
+            monkeypatch.setattr(f"{mod}.engine", lambda: e)
+        return e
+    return pin
+
+
+@pytest.fixture
 def sample_pdf(tmp_path: Path) -> Path:
     """Pages: 0 text, 1 text, 2 table, 3 diagram, 4 scanned, 5 text with figure + caption.
     Made once with ToolPDF's tests/conftest.py build_sample_pdf."""

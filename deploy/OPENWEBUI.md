@@ -247,6 +247,8 @@ docker run -d --name open-webui -p 3000:8080 \
 - 모든 문서를 대상으로 검색하는 API와 Open WebUI 도구 연결이 필요하면 추가 개발한다.
 - 이 가이드의 방식은 Open WebUI가 IngestLens의 청크를 받아 자기 지식 베이스에서 검색하는 것이다. 검색 결과는 같은 모델 서버(bge-m3, reranker)를 쓰므로 품질 차이는 크지 않다.
 
+**암호가 걸린 PDF**는 Open WebUI로 넣으면 실패한다(502). Open WebUI 문서 로더는 비밀번호를 넘길 방법이 없다. IngestLens 화면에서 그 문서를 열어 실패한 실행의 입력란에 비밀번호를 넣고 다시 실행한 뒤, Open WebUI에서 같은 파일을 다시 추가하면 처리된 청크를 받는다(같은 파일은 다시 처리하지 않고 끝난 실행을 쓴다).
+
 ## 10. 답변에 쪽 이미지 보여주기 (필터 함수)
 
 `deploy/openwebui_page_images.py`는 Open WebUI **필터 함수**다. 지식 베이스로 답한 뒤, 답변에 쓴 출처의 쪽 이미지를 두 곳에 보여준다.

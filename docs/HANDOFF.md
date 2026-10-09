@@ -11,7 +11,7 @@
 
 **대상 환경**: 직접 운영하는 서버. 외부 API를 쓰지 않고 직접 띄운 vLLM(OpenAI 호환 API)만 호출하므로 인터넷이 없는 환경에서도 동작한다.
 
-**PDF 엔진**: 이 저장소에는 PDF 라이브러리가 없다. PDF로 바꾸기, 쪽 특징 측정, 텍스트·표·그림 추출, VLM용 잘라낸 이미지, 쪽 이미지는 모두 별도 프로그램 [ToolPDF](https://github.com/kisubkim/ToolPDF)(AGPL-3.0)의 HTTP API로 한다. 호출하는 곳은 `backend/app/tools/toolpdf.py` 하나이고, API 규약은 ToolPDF의 README다. 이 저장소는 MIT다(`NOTICE.md`).
+**PDF 엔진**: PDF로 바꾸기, 쪽 특징 측정, 텍스트·표·그림 추출, VLM용 잘라낸 이미지, 쪽 이미지, 암호 PDF 열기는 PDF 엔진이 한다. 엔진은 둘이고 같은 인터페이스(ToolPDF README의 API 0.2.0)를 따른다: 별도 프로그램 [ToolPDF](https://github.com/kisubkim/ToolPDF)(AGPL-3.0, PyMuPDF, `backend/app/engines/toolpdf.py`로만 호출)와 앱 안의 내장 엔진(`backend/app/engines/local/`, pypdfium2·pdfplumber 등 퍼미시브 라이선스만). `RAG_PDF_ENGINE=auto`(기본)는 ToolPDF가 응답하면 ToolPDF, 아니면 내장 엔진이다. 앱은 하나이고 배포 형태만 둘이다(ToolPDF와 함께, ToolPDF 없이). 설계와 비교는 `docs/ENGINE_PLAN.md`. 이 저장소는 MIT다(`NOTICE.md`).
 
 | 마일스톤 | 상태 | 내용 |
 |---|---|---|
@@ -25,14 +25,16 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| PDF 엔진 인터페이스와 내장 엔진 (10-10) | 완료 | ToolPDF 0.2.0 옵션 연결, `PdfEngine` 인터페이스(`backend/app/engines/`), 내장 엔진, `RAG_PDF_ENGINE=auto/toolpdf/local`, 암호 PDF(업로드·나중에 입력), 두 엔진 conformance 시험, ToolPDF 없는 배포 묶음(`--pdf-engine local`)과 `start_local.bat local` |
 | 에이전트 규칙 화면 (10-09) | 완료 | `/#rules`: 에이전트별 규칙 값을 화면에서 바꾸고 바로 적용. 검사, 바꾼 항목만 데이터 폴더에 저장, 실행마다 규칙 버전 기록. 설명 `docs/AGENTS.md` |
 
 ### 검증 수준: 이어받는 사람이 가장 먼저 알아야 할 것
 
 | 항목 | 검증 방법 | 실제 환경 검증 |
 |---|---|---|
-| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 83개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
+| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 114개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각, 그리고 `RAG_PDF_ENGINE=local`로 전체), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
 | PDF 엔진 ToolPDF | 테스트가 ToolPDF를 직접 띄움(`tests/conftest.py`), Docker 스택, Windows `start_local.bat` | ToolPDF를 넣은 묶음을 이 PC에서 Docker(`install.sh`)와 Apptainer(`singularity.sh start`)로 확인(10-09). 실제 오프라인 서버에서는 아직 |
+| 내장 PDF 엔진 | conformance 시험 21개(ToolPDF 답과 비교), 앱 시험 전체를 `RAG_PDF_ENGINE=local`로, 공개 문서 10종 비교(7절) | ToolPDF 없는 묶음을 WSL Docker에 `install.sh`로 설치해 PDF·docx(나눔 글꼴)·암호 PDF 처리(10-10). Windows `start_local.bat local`. 실제 운영 문서와 검색 품질 비교는 아직 |
 | Windows PC (Docker 없이) | `setup_local.bat`, `start_local.bat`, `stop_local.bat` | Windows용 Ollama 0.40.1(`qwen2.5vl:7b`, `bge-m3`)로 `docs/WINDOWS.md` 3절 순서 그대로 확인. 한국어 실제 스캔 OCR까지(10-09) |
 | VLM (OCR, 그림, 표, 분류) | 코드 mock, HTTP mock, **Ollama `qwen2.5vl:7b`** (Docker, 2026-10-04) | 실제 VL 모델로 응답 형식 확인: `TYPE:` 첫 줄, OCR 제목 분리, 차트 표, 분류 JSON 모두 동작. 합성 세트에서 7b 92%·3b 86%, 실제 공개 문서 10종에서 7b 92%·3b 51%(7절). **vLLM과 큰 모델로는 아직 안 함** |
 | 임베딩 | dev-hash, mock HTTP, **Ollama `bge-m3`** | 합성 세트로 측정(7절). vLLM으로는 안 함 |
@@ -289,8 +291,8 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [x] 짧은 청크 병합(2026-10-09): `strategy.min_tokens`(기본 128), 같은 절 안에서 다음(안 되면 앞) 청크와 합친다. 근거 `chunk_merge`. 권장 조합과 측정은 `deploy/OPENWEBUI.md` 4-4, 7절.
 - [ ] 짧은 청크의 임베딩 검색이 약하다. 합친 LIS3DH WHO_AM_I 청크(54토큰)도 한국어 질문에 dense 20위(BM25 1위)라 Open WebUI가 TOP_K 10에서도 못 가져왔다. 후보: 청크 임베딩에 문서 제목·절 경로를 붙여 넣기(contextual chunk), 질문을 문서 언어로 바꿔 한 번 더 검색, 절 단위로 짧은 절끼리 합치기.
 - [ ] 절의 첫 청크만 검색되고 정답이 두 번째 청크에 있는 경우(MPU-6000 I2C 주소 "b110100X"). 후보: 검색된 청크의 같은 절 이웃 청크를 함께 넘기기(Open WebUI 쪽에서는 어려우므로 IngestLens 검색 API 쪽).
-- [ ] PDF 엔진 인터페이스와 MIT 내장 엔진(ToolPDF 없이 쓰기): 계획 `docs/ENGINE_PLAN.md`. 8절의 결정이 먼저다.
-- [ ] 암호 PDF: ToolPDF 0.2.0이 `options.document.password`를 받지만 앱은 문서별 비밀번호를 받을 곳이 없어 아직 처리하지 않는다.
+- [x] PDF 엔진 인터페이스와 내장 엔진(2026-10-10, `docs/ENGINE_PLAN.md` 9절). 남은 것: 두 엔진으로 검색 품질 비교(`eval_retrieval.py`, 실제 운영 문서), 큰 문서 속도(`bench_large.py`, 내장 엔진은 앱 프로세스의 스레드에서 돈다), 오래된 OCR 글자층에서 제목 조각이 많은 문제(내장 엔진).
+- [x] 암호 PDF(2026-10-10): 업로드의 `password` 폼 필드, `PUT /api/documents/{id}/password`, 실패한 실행 화면의 입력란. 두 엔진 모두. 비밀번호는 DB(`documents.password`)에 평문으로 저장된다(쪽 이미지를 나중에 그릴 때도 필요). 문서 내용도 이미 DB와 벡터에 평문으로 있으므로 같은 보호 수준이다. Open WebUI 로더로는 비밀번호를 넘길 수 없다.
 - [ ] 배포 묶음에 ToolPDF 0.2.0 넣기: ToolPDF 저장소에서 0.2.0을 커밋하고 `docker/release.sh`로 배포 폴더를 다시 만든 뒤 묶음을 만든다. 지금 `release/toolpdf-0.1.0`으로 만든 묶음은 옵션을 못 쓴다(상태 화면 "주의").
 - [ ] 로컬 Docker 스택의 reranker는 CPU라 합친(커진) 청크 20개 rerank가 60초를 넘겨 시간 초과(`models.docker.yaml` `reranker.timeout_s`). 운영은 GPU 모델 서버라 해당 없음. 로컬에서 후보를 늘려 잴 때는 timeout을 올린다.
 - [ ] 스캔 OCR 결과의 위치 정보: 지금은 모든 element가 페이지 전체 bbox를 갖는다. VLM grounding 출력이나 OCR 엔진 bbox로 개선한다.
@@ -318,6 +320,8 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 | 2026-09-30 | 합성 세트 검색 22문항, dev-hash | hybrid hit@1 82% (lexical 93%, paraphrase 62%) | 실제 임베딩 연결 후 비교 기준 |
 | 2026-10-04 | 합성 세트 검색 22문항, Ollama `bge-m3` + `qwen2.5vl:7b`, reranker `bge-reranker-v2-m3`(CPU). RTX 5070 Ti, Docker | dense hit@1 95%, hybrid 82% (paraphrase 50%), hybrid+rerank 100% | `evals/reports/retrieval_synthetic_ollama.md`. 실제 임베딩에서는 BM25가 paraphrase를 끌어내려 hybrid가 dense보다 낮다. 가중치 조정 후보 |
 | 2026-10-04 | 3페이지 PDF(텍스트, 스캔, 차트 그림), 같은 스택 | 전체 60s(모델 첫 로드 포함), 그림 설명 1회 8.0s, rerank 15개 1.6~2.2s(CPU) | manual.pdf 12p는 32s |
+| 2026-10-10 | 두 PDF 엔진 비교: ToolPDF 0.2.0(PyMuPDF 1.28.2, 프로세스 4개) 대 내장 엔진(pypdfium2 5.13.0, pdfplumber 0.11.10), 공개 문서 10종 50쪽(`evals/samples`), 같은 규칙, VLM 없이 | 쪽 라벨 50/50 같음, 표 20 대 20, 그림 영역 40 대 40, 글자 수 대부분 ±3%. 문서당 쪽 분석 + 추출 0.3~3.4초 대 0.1~2.8초 | 다른 점: 오래된 스캔의 OCR 글자층(NACA) 제목 149 대 588. 맞추느라 바꾼 것(선 개수를 PDFium 경로 수로, 열린 표 테두리 한도 400pt, 글자 없는 격자 버림, `line_margin` 0.8)은 `docs/ENGINE_PLAN.md` 9절 |
+| 2026-10-10 | ToolPDF 없는 배포 묶음(`--pdf-engine local`), WSL Docker Engine에 묶음만으로 설치(포트 8123), 모델 주소 비움 | 묶음 154MB(앱 이미지만). 상태: PDF 엔진(내장) 정상. sample.pdf 6쪽(라벨 ToolPDF와 같음), docx(제목 5개, 나눔 글꼴로 렌더), 암호 PDF(비밀번호와 함께 업로드) 처리 성공 | `models.yaml`의 VLM 주소 자리표시(`<VLM 서버 주소>`)를 그대로 두면 실행이 InvalidURL로 실패한다(설치 때 경고는 나옴) |
 | 2026-10-07 | Open WebUI v0.11.3 + IngestLens 개발 스택, 국가데이터처 보도자료 5쪽 | Open WebUI 기본 청크 설정(1000자, 겹침 100, Markdown 헤더 분할)에서 IngestLens 청크 49개 → Open WebUI 조각 58개. `CHUNK_SIZE=8000`, 겹침 0, 분할 끔이면 26 → 26(Docling 논문) | 큰 표 9개가 잘렸다. `deploy/OPENWEBUI.md` 4-3 |
 | 2026-10-09 | 짧은 청크 합치기 `min_tokens` 0 대 128. 합성 세트 검색 22문항(`eval_retrieval.py`, Docker의 Ollama bge-m3·CPU reranker), 센서 데이터시트 4종을 다시 처리해 Open WebUI 새 지식 베이스로 질문 9개(`gemma4:e4b`) | 합성: hybrid+rerank hit@1 95% → 100%, hybrid 86 → 91%, dense만 95 → 86%, 청크 38 → 25. 데이터시트 청크 1,314 → 869. 질문 9개: 합치기 전 TOP_K 5 7개, 합친 뒤 TOP_K 5 6개, TOP_K 10 7개, TOP_K 10 + BM25 비중 0.8 어려운 3개 중 0개 | 남은 오답은 검색 문제(짧은 청크의 dense 순위, 절 두 번째 청크). 6절 백로그. 표본이 작아 한두 개 차이는 우연일 수 있음. `deploy/OPENWEBUI.md` 4-4 |
 | 2026-10-09 | 공개 센서 데이터시트 4종(SHT3x 22쪽, LIS3DH 42쪽, MPU-6000 57쪽, BME280 60쪽, 합 181쪽)을 Open WebUI 지식 베이스에 추가(문서 로더 → IngestLens Docker 스택, `qwen2.5vl:7b`, bge-m3), 질문은 Open WebUI `gemma4:e4b` | 처리 283·236·218·429초(합 약 19분), 경고 0. 쪽 분류: 표 49, 다이어그램 31, 텍스트 90. 청크 267·336·315·396개. VLM 표 재추출(`table_empty_cells`) 89회, 잘림 재시도 29회. 질문 9개 중 7개 정답, 썸네일은 답한 경우 모두 정답 쪽(필터 0.4.0) | 오답 2개는 청크 문제: 레지스터 제목·값 표가 다른 청크(LIS3DH WHO_AM_I), 정답 문장이 큰 청크에 묻혀 검색 8위(MPU-6000 I2C 주소). 6절 백로그. 문서는 저장소에 넣지 않음 |
@@ -339,6 +343,8 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 | 모든 형식을 PDF 페이지로 통일 | 분석, 파싱, 위치 표시, 화면을 한 가지 방식으로 처리 | 페이지 개념이 없는 형식(긴 HTML 등)을 주로 다룰 때 |
 | 규칙이 먼저 분류하고 VLM은 애매한 페이지만 | 속도와 부하, 근거 설명 가능성 | VLM이 충분히 빠르고 규칙 정확도가 낮을 때 |
 | PDF 처리는 별도 프로그램 ToolPDF(HTTP API) | 이 저장소를 MIT로 두고, AGPL인 PyMuPDF는 ToolPDF 안에만 둔다. 병렬 처리는 ToolPDF의 프로세스(`TOOLPDF_WORKERS`)가 맡는다 | 요청 지연이나 전송량이 문제가 될 때 |
+| 내장 엔진을 같은 인터페이스로 함께 둠, 기본 `auto` | ToolPDF 없이도(퍼미시브 라이선스만으로) 앱 하나로 동작한다. 인터페이스는 ToolPDF README 그대로라 에이전트는 엔진을 모른다. 앱은 하나, 배포 형태만 둘 | 두 엔진의 품질 차이가 커서 기본값을 정해야 할 때(`docs/ENGINE_PLAN.md` 8절 5) |
+| 암호 PDF 비밀번호를 DB에 저장 | 쪽 이미지(화면, 청크 미리보기, Open WebUI 썸네일)를 나중에 그릴 때도 필요하다. 문서 내용이 이미 DB·벡터에 평문으로 있다 | 비밀번호 자체를 지켜야 하는 요구가 생길 때(암호화 키 관리, 또는 처리 때 암호를 푼 사본을 저장) |
 | 같은 서버면 공유 폴더로 파일 전달 | 큰 문서를 복사하지 않음. DB에 데이터 폴더 기준 상대 경로를 저장하므로 그 경로를 그대로 쓴다 | 앱과 ToolPDF를 다른 서버에 둘 때(`http` 방식) |
 | 쪽 창(window) 단위로 추출을 미리 요청 | VLM 호출과 다음 창 준비가 겹친다(`parse.windows_in_flight`가 `TOOLPDF_WORKERS`보다 크게) | 메모리가 부족하면 `window_pages`를 줄인다 |
 | Redis/arq 대신 서버 안 asyncio 작업 | 서버 1대면 충분하고 반입할 구성요소가 적음 | 여러 인스턴스, 재시작 후 이어서 실행이 필요할 때 |
@@ -354,16 +360,17 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 
 - **평가 결과가 이상하면 먼저 입력 이미지를 직접 본다**: 합성 문서를 PyMuPDF 내장 `korea` 폰트로 그리면 영문과 숫자가 전각 폭이라 `NF3`가 실제로 `N F 3`처럼 띄어져 보인다. 처음에는 이것을 VLM의 OCR 오류로 잘못 보고했다. 합성 평가 문서를 새로 만들 때 주의한다.
 - **벤치마크 PDF는 크기를 확인한다**: 같은 이미지를 반복 삽입하면 PDF는 이미지 스트림을 한 번만 저장해서, 150MB를 의도한 파일이 2.4MB가 됐다.
-- **ToolPDF가 없으면 아무 문서도 처리할 수 없다**: 상태 화면의 "PDF 엔진 (ToolPDF)"를 먼저 본다. 테스트는 `tests/conftest.py`가 `TOOLPDF_HOME`(기본 `../ToolPDF`의 `.venv`)으로 ToolPDF를 띄우므로, 그 폴더나 `.venv`가 없으면 시작하지 못한다.
+- **어느 PDF 엔진으로 처리했는지 먼저 본다**: `auto`(기본)는 ToolPDF가 응답하지 않으면 조용히 내장 엔진으로 처리한다(상태 화면 "PDF 엔진 (내장)" 주의, 근거 `PDF engine`, `summary.engine`). 결과가 예전과 다르면 엔진부터 확인한다. ToolPDF만 쓰려면 `RAG_PDF_ENGINE=toolpdf`. 테스트는 `tests/conftest.py`가 `TOOLPDF_HOME`(기본 `../ToolPDF`의 `.venv`)으로 ToolPDF를 띄우므로, 그 폴더나 `.venv`가 없으면 시작하지 못한다(conformance 시험이 두 엔진을 비교한다).
+- **내장 엔진을 ToolPDF에 맞출 때는 실제 문서로 잰다**: pdfminer는 하위 경로가 여러 개인 경로를 조각마다 세서 선 개수가 PyMuPDF보다 많았고(로고가 있는 첫 쪽이 `diagram`이 됨), `char_margin`을 올리면 두 단이 한 줄로 붙는다. `docs/ENGINE_PLAN.md` 9절의 비교 방법(같은 규칙으로 `evals/samples`의 라벨·표·그림 영역 수)을 다시 돌린다.
 - **공유 폴더 방식은 두 쪽이 같은 폴더를 봐야 한다**: 앱의 데이터 폴더와 ToolPDF의 `TOOLPDF_SHARED_ROOT`가 같은 곳이어야 한다(Docker에서는 둘 다 `/data`). 데이터 폴더 밖의 파일은 어느 방식이든 HTTP로 올린다.
-- **ToolPDF API 규약은 ToolPDF README다**: 문서에 없는 동작에 기대지 않는다. 새로 필요한 PDF 기능은 `tools/toolpdf.py`에 문서화된 엔드포인트로 추가하고, 이 저장소에 PDF 라이브러리를 들이지 않는다.
+- **ToolPDF API 규약은 ToolPDF README다**: 문서에 없는 동작에 기대지 않는다. 새로 필요한 PDF 기능은 `engines/base.py`의 인터페이스, `engines/toolpdf.py`(문서화된 엔드포인트로), `engines/local/`에 함께 넣고 conformance 시험을 더한다. PyMuPDF 같은 카피레프트 PDF 라이브러리는 들이지 않는다(`test_dependencies_stay_permissive`).
 - **SQLite는 timezone을 저장하지 않는다**: `to_dict`에서 UTC로 붙인다. 화면 캡처에서 9시간 차이로 발견했다.
 - **내장 Qdrant는 경로당 client 하나만 허용**한다. 항상 `vectorstore.client()`를 쓴다.
 - **에이전트 규칙 화면은 바로 적용된다(저장 위치 설정과 다름)**: `rules_cfg()` 캐시를 저장 때 비운다. 바꾼 값은 `<데이터 폴더>/strategy_rules.override.yaml`(바꾼 항목만). 시험 중 Windows의 Python이 한글을 cp949로 출력해 깨진 글자(외짝 서로게이트)를 보냈더니 그대로 저장되어 규칙 읽기가 500으로 멈췄다. 이제 깨진 글자는 저장 때 거부하고, 쓸 수 없는 덮어쓰기 파일은 무시하고 기본 규칙으로 처리한다(`test_rules.py`). API를 스크립트로 부를 때는 UTF-8로 보낸다.
 - **저장 위치 설정은 재시작해야 적용된다**: DB engine과 Qdrant client를 import 시점에 만든다. 설정 파일(`RAG_SETTINGS_FILE`)은 환경 변수와 `.env`보다 우선순위가 낮다. 그래서 `RAG_DATA_DIR`을 환경 변수로 주면 화면에서는 잠긴다.
 - **파일 경로는 데이터 폴더 기준 상대 경로로 저장한다**(`settings.stored_path` / `settings.resolve`). 새 코드에서 `Document.path`나 `pdf_path`를 읽을 때 `Path(...)`로 바로 열지 말고 `settings.resolve()`를 거친다.
 - **asyncio Semaphore는 이벤트 루프에 묶인다**: TestClient는 테스트마다 새 루프를 쓰므로 VLM semaphore를 루프별로 만든다.
-- **Windows bash heredoc**: Python 코드 안의 `\n`, 바이트 이스케이프, 한글이 깨질 수 있다. 코드 수정은 편집 도구를 쓴다.
+- **Windows bash heredoc**: Python 코드 안의 `\n`, 바이트 이스케이프, 한글이 깨질 수 있다. `\\`도 `\`로 바뀐다(배치 파일 경로를 고치는 스크립트가 문법 오류로 멈춤, 10-10). 코드 수정은 편집 도구를 쓰고, 스크립트는 파일로 만들어 실행한다.
 - **Windows에서 서버를 강제 종료하면 exit 255**가 보인다. 정상이다.
 - **mock 분류기는 항상 `diagram`이라고 답한다**: mock VLM으로 띄운 데모 화면의 "relabel → diagram" 결정은 mock 때문이다.
 - **백신의 HTTPS 검사(Norton 등)**: 컨테이너 안의 pip, npm, `ollama pull`이 `CERTIFICATE_VERIFY_FAILED`로 실패한다. 호스트는 Windows 인증서 저장소를 써서 문제가 없다. 그 루트 인증서를 `docker/certs/*.crt`로 내보내면 이미지와 Ollama가 신뢰한다(`docker/certs/README.md`).

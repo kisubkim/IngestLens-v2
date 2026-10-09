@@ -25,6 +25,9 @@ class Document(Base):
     format: Mapped[str | None] = mapped_column(String(32))
     pdf_path: Mapped[str | None] = mapped_column(String(1024))
     page_count: Mapped[int | None] = mapped_column(Integer)
+    # An encrypted PDF's password, given at upload or later; every engine call for this document sends it.
+    # Never returned by the API (to_dict) nor written to events or decisions.
+    password: Mapped[str | None] = mapped_column(String(1024))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -108,9 +111,15 @@ class Chunk(Base):
     embedded: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+SECRET_COLUMNS = {"password"}
+
+
 def to_dict(obj) -> dict:
     out = {}
     for col in obj.__table__.columns:
+        if col.name in SECRET_COLUMNS:
+            out[f"has_{col.name}"] = getattr(obj, col.name) is not None
+            continue
         v = getattr(obj, col.name)
         if isinstance(v, datetime):
             # SQLite returns naive datetimes; values are always stored in UTC.

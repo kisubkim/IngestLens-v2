@@ -37,28 +37,38 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 - **상태는 DB에 둔다.** 앞 에이전트가 쪽 분석, 요소, 청크를 DB에 쓰고 다음 에이전트가 읽는다. 단계 사이에 넘기는 것은 ID, 경로, 요약, 계획뿐이다.
 - **실패해도 멈추지 않는 곳은 대체한다.** VLM 오류는 쪽 단위로 원문 텍스트로 대체하고 실행은 계속한다. 모델 주소가 비어 있으면 그 기능만 끄고 진행한다.
 - **문서는 하나씩 처리한다.** 여러 문서를 넣으면 들어온 순서대로 대기열에 선다.
-- **PDF 작업은 모두 ToolPDF가 한다.** 에이전트는 ToolPDF HTTP API로 특징, 추출 결과, 쪽 이미지를 받아 판단만 한다.
+- **PDF 작업은 모두 PDF 엔진이 한다.** 엔진은 둘 중 하나다(`RAG_PDF_ENGINE`, 기본 `auto`): 별도 프로그램 ToolPDF(PyMuPDF), 또는 앱 안의 내장 엔진(pypdfium2, pdfplumber). 둘은 같은 요청·응답 형식(ToolPDF API 0.2.0)을 따르고, 에이전트는 엔진이 준 특징, 추출 결과, 쪽 이미지로 판단만 한다. 아래에서 "ToolPDF"라고 쓴 곳은 내장 엔진도 같다.
 
 ## 2. ① intake: 형식 판별과 PDF 변환
 
-**하는 일.** 파일의 실제 형식을 확장자와 파일 내용(magic bytes)으로 함께 판별하고, 모든 문서를 PDF 쪽으로 통일한다. 이후 단계가 형식과 상관없이 같은 방식(쪽 분석, 위치 표시, 화면)으로 동작하게 하기 위해서다.
+**하는 일.** 먼저 이 실행에 쓸 PDF 엔진을 정한다. 그다음 파일의 실제 형식을 확장자와 파일 내용(magic bytes)으로 함께 판별하고, 모든 문서를 PDF 쪽으로 통일한다. 이후 단계가 형식과 상관없이 같은 방식(쪽 분석, 위치 표시, 화면)으로 동작하게 하기 위해서다.
+
+**PDF 엔진 고르기** (근거 주제 "PDF engine"):
+
+| 설정 `RAG_PDF_ENGINE` | 판단 | 근거 `rule_id` |
+|---|---|---|
+| `auto` (기본) | ToolPDF가 응답하면(`/v1/health`, 2초) ToolPDF, 아니면 내장 엔진. 내장 엔진을 쓰는 중이면 실행을 시작할 때마다(최대 30초에 한 번) ToolPDF를 다시 확인한다 | `pdf_engine_auto` |
+| `toolpdf`, `local` | 정한 엔진만 쓴다. `toolpdf`인데 ToolPDF가 없으면 실행이 실패한다 | `pdf_engine_configured` |
+
+근거에 엔진 이름, 버전, 이유가 남고, 실행 요약(`summary.engine`)에도 들어가 같은 문서를 두 엔진으로 처리한 결과를 비교할 수 있다. 한 실행은 처음 고른 엔진으로 끝까지 간다(문서는 하나씩 처리하므로 다음 실행부터 바뀐다).
 
 | 형식 | 판단 | 근거 `rule_id` |
 |---|---|---|
 | PDF | 그대로 쓴다 | `magic_pdf` |
 | 이미지(png, jpg, tif 등) | 한 쪽짜리 PDF로 감싼다 | `image_wrap` |
-| docx, pptx, xlsx | 아래 규칙으로 LibreOffice 또는 ToolPDF 자체 렌더링 | `office_convert` / `office_native` |
+| 암호가 걸린 PDF | 문서에 저장된 비밀번호로 연다 | `pdf_password` |
+| docx, pptx, xlsx | 아래 규칙으로 LibreOffice 또는 엔진 자체 렌더링 | `office_convert` / `office_native` |
 | doc, ppt, hwp 등 | LibreOffice가 있어야 한다. 없으면 실패 | — |
 | 그 밖 | 지원하지 않는 형식으로 실패 | — |
 
 **Office 변환 방법을 고르는 기준** (`strategy_rules.yaml` `office`):
-- 자체 렌더링을 쓰는 경우: `prefer: native`이거나, ToolPDF에 LibreOffice가 없거나, xlsx이면서 `xlsx: native`(기본)일 때. 넓은 시트를 LibreOffice는 쪽마다 잘라 표가 깨지기 때문이다. 시트는 24행씩 한 쪽(`xlsx_rows_per_page`)으로 나누고 머리 행을 반복한다.
+- 자체 렌더링을 쓰는 경우: `prefer: native`이거나, 엔진에 LibreOffice가 없거나(ToolPDF는 그 서버, 내장 엔진은 앱이 도는 PC의 LibreOffice), xlsx이면서 `xlsx: native`(기본)일 때. 넓은 시트를 LibreOffice는 쪽마다 잘라 표가 깨지기 때문이다. 시트는 24행씩 한 쪽(`xlsx_rows_per_page`)으로 나누고 머리 행을 반복한다.
 - 그 밖에는 LibreOffice(원본 레이아웃에 가장 가깝다).
 - 어느 쪽이든 PDF에 남지 않는 구조를 **힌트**로 함께 받는다: docx 제목 스타일, 슬라이드 제목, 발표자 노트, pptx 차트 데이터. ④ parse가 쓴다.
 
 **그 밖의 판단:**
 - 확장자와 내용이 다르면 경고하고 근거의 신뢰도를 0.7로 낮춘다(내용을 따른다).
-- 암호가 걸린 PDF는 처리하지 않는다.
+- **암호가 걸린 PDF:** 비밀번호는 업로드 때(`password` 폼 필드) 또는 나중에(`PUT /api/documents/{id}/password`, 실패한 실행 화면의 입력란) 문서에 저장한다. 없으면 "PDF is password protected", 틀리면 "wrong PDF password"로 실패한다. 이후 모든 엔진 호출(쪽 분석, 추출, 쪽 이미지)에 같은 비밀번호를 보낸다(`options.document.password`). 비밀번호는 근거·이벤트·API 응답에 남기지 않는다(문서에는 `has_password`만 보인다). 문서를 지우면 함께 지워진다.
 
 ## 3. ② profile: 쪽 성격 분석
 
@@ -99,7 +109,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 | scanned | `vlm_ocr` | 쪽 전체 이미지를 VLM이 Markdown으로 받아쓰기 |
 | diagram, chart, image_heavy | `vlm_figures` | 글자 + 그림 영역마다 VLM 설명 |
 
-(`pymupdf_*`는 ToolPDF의 `text` 모드를 가리키는 이름일 뿐, 이 저장소가 PDF 라이브러리를 쓰는 것은 아니다.)
+(`pymupdf_*`는 PDF 엔진의 `text` 모드를 가리키는 이름일 뿐이다. 이 저장소는 PyMuPDF를 쓰지 않고, 내장 엔진으로 처리해도 이름은 같다. 저장된 실행과 시험이 이 이름에 기대므로 바꾸지 않는다.)
 
 - VLM이 설정되지 않았으면 VLM 파서는 `pymupdf_text`로 바꾸고, 바뀐 라벨들을 대안으로 남기며 신뢰도를 0.6으로 낮춘다.
 
@@ -148,7 +158,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 
 ### 5-1. PDF 엔진 옵션 (표 찾기, 이미지)
 
-②와 ④가 ToolPDF에 요청할 때 함께 보내는 옵션이다(ToolPDF 0.2.0 이상, 규칙 `engine`). 기본값은 엔진 기본값과 같아서 바꾸지 않으면 동작이 그대로다.
+②와 ④가 PDF 엔진에 요청할 때 함께 보내는 옵션이다(ToolPDF 0.2.0 이상과 내장 엔진, 규칙 `engine`). 기본값은 엔진 기본값과 같아서 바꾸지 않으면 동작이 그대로다. 내장 엔진은 같은 이름의 pdfplumber 표 설정으로 옮긴다.
 
 | 묶음 | 주요 값 (기본) | 쓰는 곳 | 뜻 |
 |---|---|---|---|
@@ -158,7 +168,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 - 같은 표 옵션을 ②와 ④에 함께 보내, 쪽 분류가 본 표와 추출한 표가 같다.
 - 표 재추출 기준(`parse.tables.max_empty_cell_ratio`)과 VLM 이미지 해상도·형식(`models.yaml` `vlm`)도 옵션 안에 넣어 보낸다.
 - 엔진이 옵션을 모르면(0.1.x) 예전 요청을 보내고 근거에 `engine_options_unsupported`를 남긴다. 규칙의 엔진 옵션을 바꿔 두었다면 적용되지 않았다는 뜻이다. 상태 화면의 PDF 엔진도 "주의"로 보인다.
-- 암호 PDF(`options.document.password`)는 문서마다 비밀번호가 필요해 아직 쓰지 않는다. 암호 PDF는 처리하지 않는다.
+- 문서의 비밀번호(`options.document.password`)도 같은 옵션에 실어 보낸다(②의 암호 PDF).
 
 ## 6. ⑤ chunk: 청크 나누기
 
@@ -208,6 +218,8 @@ VLM에 보내는 질문 형식(프롬프트)과 그 답을 읽는 규칙은 `bac
 
 | `rule_id` | 에이전트 | 뜻 |
 |---|---|---|
+| `pdf_engine_auto`, `pdf_engine_configured` | intake | 이 실행의 PDF 엔진(ToolPDF 또는 내장)과 이유 |
+| `pdf_password` | intake | 암호 PDF를 문서의 비밀번호로 열었음 |
 | `magic_pdf`, `image_wrap`, `office_convert`, `office_native` | intake | 변환 방법 |
 | 규칙 `id`(`scanned` 등), `fallback_mixed` | profile | 쪽 라벨(쪽 분석 화면에 쪽마다) |
 | `vlm_review` | profile | VLM 2차 판단(유지 또는 변경) |
@@ -220,7 +232,7 @@ VLM에 보내는 질문 형식(프롬프트)과 그 답을 읽는 규칙은 `bac
 | `vlm_truncated_retry` | parse | 잘린 답 다시 요청 |
 | `table_empty_cells` | parse | 표를 VLM으로 다시 읽음 |
 | `vlm_figure_type` | parse | 큰 차트로 쪽을 chart로 다시 분류 |
-| `engine_options`, `engine_options_unsupported` | profile | PDF 엔진에 보낸 표·이미지 옵션(엔진 버전 포함), 또는 옛 엔진이라 보내지 못함 |
+| `engine_options`, `engine_options_unsupported` | profile | PDF 엔진에 보낸 표·이미지 옵션(엔진 이름·버전 포함), 또는 옛 ToolPDF라 보내지 못함 |
 | `figure_regions` | parse | 그림 설명 결과 요약 |
 | `chunk_merge` | chunk | 짧은 청크 합치기 |
 | `configured_endpoint`, `embedding_not_configured` | embed | 임베딩 모델 |

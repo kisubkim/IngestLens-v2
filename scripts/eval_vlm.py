@@ -91,7 +91,7 @@ def dataset_version(cases_file: Path, spec: dict) -> str:
 
     from PIL import Image
 
-    from app.tools.toolpdf import engine
+    from app.tools.engine import engine
 
     h = hashlib.sha256(json.dumps(spec["documents"], ensure_ascii=False, sort_keys=True).encode())
     for d in spec["documents"]:

@@ -1,6 +1,6 @@
 # 문서 자동 분석·청킹·임베딩 Multi-Agent RAG 파이프라인
 
-> 처음 세운 계획이다. 구현된 구조와 다른 점은 각 마일스톤의 "구현 메모"와 `docs/HANDOFF.md`에 있다. 가장 큰 차이는 PDF 처리다: 모든 PDF 작업(변환, 쪽 특징, 추출, 렌더)은 별도 프로그램인 PDF 엔진 [ToolPDF](https://github.com/kisubkim/ToolPDF)를 HTTP로 호출해서 하고, 이 저장소에는 PDF 라이브러리를 넣지 않는다.
+> 처음 세운 계획이다. 구현된 구조와 다른 점은 각 마일스톤의 "구현 메모"와 `docs/HANDOFF.md`에 있다. 가장 큰 차이는 PDF 처리다: 모든 PDF 작업(변환, 쪽 특징, 추출, 렌더)은 PDF 엔진이 한다. 별도 프로그램인 [ToolPDF](https://github.com/kisubkim/ToolPDF)를 HTTP로 호출하거나, 앱 안의 내장 엔진(퍼미시브 라이선스 라이브러리만)을 쓴다(`docs/ENGINE_PLAN.md`).
 
 ## Context
 사용자가 웹에서 문서를 선택하면 agent가 다음을 자동으로 처리해야 한다.

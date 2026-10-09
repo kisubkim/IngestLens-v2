@@ -1,0 +1,28 @@
+# IngestLens 오프라인 배포, ToolPDF 없는 형태 (운영 서버용). 인터넷 없이 동작한다.
+# PDF 처리는 앱 안의 내장 엔진(pypdfium2, pdfplumber 등 퍼미시브 라이선스만)이 한다. 묶음 전체가 MIT 등 퍼미시브 라이선스다.
+# 이 형태의 배포 묶음에서는 이 파일이 docker-compose.yml 이 된다(scripts/build_offline_bundle.py --pdf-engine local).
+#
+#   ./install.sh        # 이미지 불러오기 + 앱 시작
+#
+# 모델은 이 compose 밖에서 돈다(README.md). 각 주소는 같은 폴더의 models.yaml 에 적는다.
+# .doc, .ppt, .hwp 는 LibreOffice 가 필요해 이 형태에서는 처리하지 않는다(docx, pptx, xlsx, PDF, 이미지는 처리).
+
+name: ingestlens-server
+
+services:
+  app:
+    image: ingestlens:${INGESTLENS_VERSION:?.env 에 INGESTLENS_VERSION 을 적으세요}
+    restart: unless-stopped
+    environment:
+      RAG_MODELS_FILE: /config/models.yaml
+      RAG_PDF_ENGINE: local
+      # 사용자들이 다른 PC에서 접속하므로, 설정 변경·문서 삭제·수집 API는 이 키로만 허용된다. 반드시 설정한다.
+      RAG_API_KEY: ${RAG_API_KEY:-}
+    volumes:
+      - ${INGESTLENS_DATA_DIR:-./data}:/data      # 올린 문서, DB, 벡터. 백업 대상
+      - ./models.yaml:/config/models.yaml:ro
+    ports:
+      - "${INGESTLENS_PORT:-8000}:8000"
+    # 모델 서버를 같은 서버의 호스트에서 띄우면 컨테이너에서 host.docker.internal 로 접근한다(models.yaml).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
