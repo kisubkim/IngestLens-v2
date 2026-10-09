@@ -24,6 +24,7 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 
 - 계획: `docs/PLAN.md`
 - 이어서 작업할 때 필요한 내용(상태, 반입 절차, 백로그, 함정): **`docs/HANDOFF.md`**
+- 에이전트 구성과 판단 기준(각 단계가 무엇을 어떤 규칙으로 정하는지): **`docs/AGENTS.md`**
 - 평가와 튜닝: `evals/README.md`
 - 라이선스: MIT (`LICENSE`). PDF 엔진 ToolPDF(AGPL-3.0, 별도 프로그램), 의존성, 모델의 라이선스는 `NOTICE.md`
 
@@ -65,6 +66,10 @@ ToolPDF를 다른 주소에 띄웠으면 `RAG_TOOLPDF_URL`을 정한다. 기본�
 - 실행 중이거나 대기 중인 문서는 지울 수 없다. 먼저 실행을 취소한다.
 - 저장 위치 설정과 같이 서버가 돌아가는 PC에서만 지울 수 있다(`RAG_API_KEY`를 설정하면 그 키로 어디서나).
 - API: `DELETE /api/documents/{id}`, `DELETE /api/documents?confirm=all`
+
+## 에이전트 규칙 바꾸기 (`/#rules`)
+
+각 단계(에이전트)가 판단에 쓰는 값(쪽 분류 규칙, 파서 선택, 그림·표 기준, 청크 크기·겹침·최소 크기, Office 변환 방법)을 화면에서 바꾸고 **서버 재시작 없이 바로 적용**한다. 왼쪽 아래 "에이전트 규칙" 버튼, 실행 화면의 단계 상자, 근거 상세의 "이 단계 규칙 보기·바꾸기"로 들어간다. 값은 저장할 때 검사하고, 바꾼 항목만 데이터 폴더의 `strategy_rules.override.yaml`에 저장한다(기본값 `config/strategy_rules.yaml`은 그대로). 실행마다 어떤 규칙 버전으로 처리했는지 근거에 남는다. 변경 권한은 저장 위치 설정과 같다. 자세한 설명: `docs/AGENTS.md` 11절. API: `GET/PUT/DELETE /api/rules`
 
 ## 백엔드 상태 확인
 

@@ -5,11 +5,20 @@ import EvalView from "./EvalView";
 import HomeView from "./HomeView";
 import StatusView, { StatusBadge, useBackendStatus } from "./StatusView";
 import SettingsView from "./SettingsView";
+import RulesView from "./RulesView";
 
 const ACCEPT_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".hwp", ".png", ".jpg", ".jpeg", ".tif", ".tiff"];
 
-type Panel = "doc" | "settings" | "evals" | "status";
-const HASH_PANELS = ["#evals", "#settings", "#status"];
+type Panel = "doc" | "settings" | "evals" | "status" | "rules";
+const HASH_PANELS = ["#evals", "#settings", "#status", "#rules"];
+const AGENT_KEYS = ["intake", "profile", "strategy", "parse", "chunk", "embed"];
+
+/** "#rules/parse" opens the rules screen on that agent's tab; "#rules" on the profiler. */
+function hashState(): { panel: Panel; agent: string } {
+  const [head, sub] = location.hash.split("/");
+  const panel = HASH_PANELS.includes(head) ? (head.slice(1) as Panel) : "doc";
+  return { panel, agent: AGENT_KEYS.includes(sub) ? sub : "profile" };
+}
 
 function fmtSize(bytes: number) {
   return bytes >= 2 ** 20 ? `${(bytes / 2 ** 20).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
@@ -36,12 +45,17 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   // Documents added by upload that wait for "순서대로 실행", in upload order.
   const [pending, setPending] = useState<string[]>([]);
-  // #evals and #settings open those screens directly, so they can be linked and bookmarked.
-  const [panel, setPanel] = useState<Panel>(() => (HASH_PANELS.includes(location.hash) ? (location.hash.slice(1) as Panel) : "doc"));
+  // #evals, #settings, #status and #rules[/agent] open those screens directly, so they can be linked and bookmarked.
+  const [panel, setPanel] = useState<Panel>(() => hashState().panel);
+  const [rulesAgent, setRulesAgent] = useState(() => hashState().agent);
   const backend = useBackendStatus();
   useEffect(() => {
-    history.replaceState(null, "", panel === "doc" ? location.pathname : `#${panel}`);
-  }, [panel]);
+    history.replaceState(null, "", panel === "doc" ? location.pathname : panel === "rules" ? `#rules/${rulesAgent}` : `#${panel}`);
+  }, [panel, rulesAgent]);
+  const openRules = useCallback((agent: string) => {
+    setRulesAgent(AGENT_KEYS.includes(agent) ? agent : "profile");
+    setPanel("rules");
+  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
 
@@ -219,6 +233,9 @@ export default function App() {
           {!docs.length && <li className="empty">업로드된 문서가 없습니다.</li>}
         </ul>
         <StatusBadge overall={backend.overall} active={panel === "status"} onClick={() => setPanel("status")} />
+        <button className={panel === "rules" ? "settings-link active" : "settings-link"} onClick={() => openRules(rulesAgent)}>
+          에이전트 규칙
+        </button>
         <button className={panel === "evals" ? "settings-link active" : "settings-link"} onClick={() => setPanel("evals")}>
           VLM 평가 비교
         </button>
@@ -237,6 +254,17 @@ export default function App() {
               setRunId(null);
               setPending([]);
               refresh();
+            }}
+          />
+        )}
+        {panel === "rules" && (
+          <RulesView
+            agent={rulesAgent}
+            onAgent={setRulesAgent}
+            selectedDoc={selected}
+            onRerun={() => {
+              setPanel("doc");
+              start();
             }}
           />
         )}
@@ -262,7 +290,7 @@ export default function App() {
               </div>
             </header>
             {runId ? (
-              <RunView key={runId} runId={runId} documentId={selected.id} onFinished={refresh} />
+              <RunView key={runId} runId={runId} documentId={selected.id} onFinished={refresh} onOpenRules={openRules} />
             ) : (
               <div className="placeholder">아직 실행 기록이 없습니다.</div>
             )}

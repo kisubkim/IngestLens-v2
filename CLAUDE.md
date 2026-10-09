@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 IngestLens is a multi-agent RAG ingestion pipeline with a web UI. A user uploads a document (PDF, Office, or image). Agents detect the format and profile each page's content type, then pick parsers and a chunking strategy. The chunks are embedded into Qdrant. The UI shows progress, the evidence behind every decision, and the parse, chunk, embedding and search results.
 
-The target deployment is an offline environment: no internet and no external APIs. Models are served by vLLM through OpenAI-compatible endpoints. License: MIT (`LICENSE`, `NOTICE.md`). `docs/HANDOFF.md` has the status, backlog and gotchas, `PROGRESS.md` is the dated work log; read them before larger changes and update them after.
+The target deployment is an offline environment: no internet and no external APIs. Models are served by vLLM through OpenAI-compatible endpoints. License: MIT (`LICENSE`, `NOTICE.md`). `docs/HANDOFF.md` has the status, backlog and gotchas, `PROGRESS.md` is the dated work log; read them before larger changes and update them after. `docs/AGENTS.md` explains each agent's role, decision rules, thresholds and `rule_id`s for readers; when you change a rule, threshold or decision, update it too.
 
 ## PDF work goes through ToolPDF
 
@@ -66,7 +66,7 @@ Other configuration (`RAG_` env vars or `.env`): `RAG_DATA_DIR` (default `./data
 
 **Everything is normalized to PDF** in intake (by ToolPDF `normalize`/`info`): images become one-page PDFs; Office files go through LibreOffice when ToolPDF reports it, otherwise (and for xlsx by default, `config/strategy_rules.yaml` `office`) through ToolPDF's native renderer. Both paths return `hints` (docx heading styles, slide titles, speaker notes, pptx chart data); the parser applies them. Legacy `.doc`, `.ppt`, `.hwp` need LibreOffice on ToolPDF. Bboxes are PDF points; pages are 0-based internally, 1-based in the UI.
 
-**Rules are data**: `config/strategy_rules.yaml` holds `profiler.rules` (first match wins, evidence stored per page), `strategy.parsers` (page label → parser), chunking parameters, `parse` (window size, windows in flight, figures, captions, tables) and `office`. `config/models.yaml` holds the endpoints for `embedding`, `reranker` and `vlm`; an empty `base_url` degrades instead of failing and records the fallback (VLM parsers → `pymupdf_text`, embedding → `dev-hash`, rerank off).
+**Rules are data**: `config/strategy_rules.yaml` holds `profiler.rules` (first match wins, evidence stored per page), `strategy.parsers` (page label → parser), chunking parameters, `parse` (window size, windows in flight, figures, captions, tables) and `office`. The "에이전트 규칙" screen (`/#rules`, `api/rules.py`, `frontend/src/RulesView.tsx`) edits them live: every editable value is declared once in `tools/rules_schema.py` `FIELDS` (agent, label, help, range; the screen is drawn from it and `validate()` checks saves), changes are stored as an override of only the changed keys in `<data_dir>/strategy_rules.override.yaml`, and `config.rules_cfg()` (shipped file merged with the override; dicts merge, lists replace) is cache-cleared on save so the next agent step uses them. An unusable override is ignored (shipped rules apply) and reported. Always read rules through `rules_cfg()`; a new rule value needs a `FIELDS` entry, and `rules_version()` is recorded in each run's plan. `config/models.yaml` holds the endpoints for `embedding`, `reranker` and `vlm`; an empty `base_url` degrades instead of failing and records the fallback (VLM parsers → `pymupdf_text`, embedding → `dev-hash`, rerank off).
 
 **Profiling** (`agents/profiler.py`): ToolPDF measures page features; `tools/pdf.py` `classify()` applies the rules. Pages with low confidence (at most 10) get a VLM second opinion on a ToolPDF page render.
 
@@ -91,7 +91,7 @@ Other configuration (`RAG_` env vars or `.env`): `RAG_DATA_DIR` (default `./data
 
 ## Status and next steps (2026-10-09)
 
-- Code and tests (70, both transfer modes) work against ToolPDF; the Docker stack runs with ToolPDF in shared-folder mode.
+- Code and tests (78, both transfer modes) work against ToolPDF; the Docker stack runs with ToolPDF in shared-folder mode.
 - License is MIT; `NOTICE.md` explains ToolPDF (AGPL-3.0) as a separate program. Docs must not describe this repository as derived from another IngestLens repository.
 - Docs describe the ToolPDF structure. Verified on this PC (2026-10-09): the Docker bundle (WSL Docker), the `--singularity` bundle (`singularity.sh start` in an Apptainer container, model server on CPU), and the Windows path with Windows Ollama 0.40.1 (`docs/WINDOWS.md` §3). Not yet: the offline server and Singularity `--nv`.
 - Pushed to `https://github.com/kisubkim/IngestLens-v2` (`origin/main`, public, MIT). Next: the bundle on the offline server (`docs/HANDOFF.md` §6).

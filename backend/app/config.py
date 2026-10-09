@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -74,6 +76,55 @@ def models_cfg() -> dict:
     return yaml.safe_load(settings.models_file.read_text(encoding="utf-8"))
 
 
+def rules_base() -> dict:
+    """The rules shipped in config/strategy_rules.yaml (or RAG_RULES_FILE)."""
+    return yaml.safe_load(settings.rules_file.read_text(encoding="utf-8"))
+
+
+def rules_override_path() -> Path:
+    """Values changed on the rules screen. In the data folder: writable under Docker and Singularity, and backed up
+    with the documents. Holds only the changed keys, so new defaults in a later version still apply."""
+    return settings.data_dir / "strategy_rules.override.yaml"
+
+
+def rules_override() -> dict:
+    p = rules_override_path()
+    return (yaml.safe_load(p.read_text(encoding="utf-8")) or {}) if p.exists() else {}
+
+
+# Why the override file was ignored the last time the rules were loaded ("" when it was used or absent).
+RULES_OVERRIDE_ERROR = {"message": ""}
+
+
+def merge_rules(base: dict, override: dict) -> dict:
+    """Dicts merge key by key; any other value (numbers, strings, the profiler rule list) is replaced whole."""
+    out = dict(base)
+    for k, v in override.items():
+        out[k] = merge_rules(base[k], v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+    return out
+
+
 @lru_cache
 def rules_cfg() -> dict:
-    return yaml.safe_load(settings.rules_file.read_text(encoding="utf-8"))
+    """Effective rules: the shipped file plus the screen's overrides. The rules screen clears this cache on save,
+    so the next agent step reads the new values without a restart. An override that cannot be read or would give
+    values the agents cannot use (e.g. edited by hand) is ignored, so documents still process with the shipped
+    rules; the rules screen shows why."""
+    from .tools.rules_schema import validate  # imports nothing from here
+
+    base = rules_base()
+    RULES_OVERRIDE_ERROR["message"] = ""
+    try:
+        merged = merge_rules(base, rules_override())
+        errors = validate(merged)
+    except Exception as e:  # unreadable YAML, wrong shapes
+        errors = [f"{type(e).__name__}: {e}"]
+    if errors:
+        RULES_OVERRIDE_ERROR["message"] = "; ".join(errors[:5])
+        return base
+    return merged
+
+
+def rules_version() -> str:
+    """Short hash of the effective rules, recorded per run so runs made with different rules can be told apart."""
+    return hashlib.sha256(json.dumps(rules_cfg(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:10]

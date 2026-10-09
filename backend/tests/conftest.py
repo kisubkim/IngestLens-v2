@@ -59,7 +59,7 @@ _start_engine()
 @pytest.fixture
 def sample_pdf(tmp_path: Path) -> Path:
     """Pages: 0 text, 1 text, 2 table, 3 diagram, 4 scanned, 5 text with figure + caption.
-    Made once with ToolPDF's tests/conftest.py build_sample_pdf (same content as the original IngestLens fixture)."""
+    Made once with ToolPDF's tests/conftest.py build_sample_pdf."""
     path = tmp_path / "sample.pdf"
     # A trailing comment makes every copy unique: uploads deduplicate by sha256, and each test expects a new document.
     path.write_bytes((FIXTURES / "sample.pdf").read_bytes() + f"\n% {uuid.uuid4()}\n".encode())

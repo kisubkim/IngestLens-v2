@@ -383,3 +383,24 @@ button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 1
 .recent-docs tbody tr:hover { background: var(--bg); }
 .recent-docs th { word-break: break-all; }
 .parse-report .thumb-grid { margin-bottom: 14px; }
+
+/* Agent rules screen (RulesView) */
+.node.clickable { cursor: pointer; }
+.node.clickable:hover { border-color: var(--accent); }
+.rules .view-tabs { margin-bottom: 0; flex-wrap: wrap; }
+.rules .view-tabs .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: 6px; vertical-align: middle; }
+.rules .ok-notice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: color-mix(in srgb, var(--ok) 12%, transparent); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.rule-field { padding: 8px 10px; border-radius: 6px; }
+.rule-field.changed { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.rule-field select, .rule-field input[type="number"] { max-width: 260px; font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+.rule-path { font-size: 11px; color: var(--muted); font-weight: 400; }
+.rule-table td { vertical-align: top; }
+.rule-table input.mono { width: 150px; }
+.rule-table td:last-child { white-space: nowrap; text-align: left; }
+.cond-row { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
+.cond-row select, .cond-row input { font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text); }
+.cond-row input { width: 80px; }
+.row-actions button { padding: 2px 8px; margin-right: 3px; }
+.parser-map { max-width: 420px; }
+.parser-map td:last-child { text-align: left; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; }

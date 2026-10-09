@@ -338,6 +338,57 @@ export interface BackendStatus {
 
 export const pageImage =(docId: string, page: number, dpi = 96) => `/api/documents/${docId}/pages/${page}.png?dpi=${dpi}`;
 
+/** Agent rules screen (api/rules.py): the editable values of config/strategy_rules.yaml, drawn from `fields`. */
+export type RuleFieldType = "int" | "float" | "bool" | "choice" | "regex" | "rule_list" | "parser_map";
+export interface RuleField {
+  agent: string;
+  path: string[];
+  label: string;
+  help: string;
+  type: RuleFieldType;
+  min?: number;
+  max?: number;
+  step?: number;
+  choices?: string[];
+}
+export interface ProfilerRule {
+  id: string;
+  label: string;
+  when: Record<string, number>;
+}
+export interface RulesState {
+  agents: { key: string; label: string; about: string }[];
+  fields: RuleField[];
+  features: Record<string, string>;
+  labels: string[];
+  parsers: string[];
+  rules: Record<string, any>;
+  defaults: Record<string, any>;
+  changed: string[][];
+  override_file: string;
+  overridden: boolean;
+  override_error: string;
+  rules_version: string;
+  key_required: boolean;
+  editable_here: boolean;
+  active_runs: number;
+}
+
+async function rulesJson(res: Response): Promise<RulesState> {
+  if (res.ok) return res.json();
+  let reason = `${res.status} ${await res.clone().text()}`;
+  if (res.status === 400) {
+    const body = await res.json().catch(() => null);
+    const errors: string[] = body?.detail?.errors ?? [];
+    if (errors.length) reason = `저장하지 않았습니다. 고칠 값:\n- ${errors.join("\n- ")}`;
+  } else if (res.status === 403) {
+    reason = "규칙은 서버가 돌아가는 PC에서만 바꿀 수 있습니다. 다른 PC에서 바꾸려면 서버에 RAG_API_KEY를 설정하세요.";
+  } else if (res.status === 401) {
+    reason = "관리자 키(RAG_API_KEY)가 맞지 않습니다.";
+  }
+  throw new ApiError(reason, res.status);
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return res.json();
@@ -357,6 +408,15 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ document_ids: docIds }),
     }).then(json<Run[]>),
+  rules: () => fetch("/api/rules").then(rulesJson),
+  updateRules: (rules: Record<string, any>, apiKey?: string) =>
+    fetch("/api/rules", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+      body: JSON.stringify({ rules }),
+    }).then(rulesJson),
+  resetRules: (apiKey?: string) =>
+    fetch("/api/rules", { method: "DELETE", headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {} }).then(rulesJson),
   storage: () => fetch("/api/settings/storage").then(json<StorageState>),
   updateStorage: (changes: Partial<Record<StorageKey, string>>, apiKey?: string) =>
     fetch("/api/settings/storage", {

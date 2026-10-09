@@ -15,6 +15,7 @@
 - 10-09: Windows용 Ollama와 Singularity 묶음 확인, IngestLens + Open WebUI 시험 환경 스크립트(`start_webui_test.bat`, `stop_webui_test.bat`)
 - 10-09: Open WebUI 채팅 모델 `gemma4:e4b`, 쪽 이미지 필터 0.4.0(답과 상관없는 썸네일 문제 수정)
 - 10-09: 공개 센서 데이터시트 4종(22~60쪽)으로 Open WebUI 전체 흐름 시험. 짧은 청크 병합이 필요함을 확인
+- 10-09: 에이전트 설명서(`docs/AGENTS.md`)와 규칙을 바로 바꾸는 화면(`/#rules`)
 
 ## 1. 한눈에 보기
 
@@ -33,7 +34,7 @@
 | Open WebUI 연동 | 완료. v0.11.3으로 파일 추가 → 처리 → 지식 베이스 → LLM 답변까지 확인, `deploy/OPENWEBUI.md` (2-18) |
 | Open WebUI 답변에 쪽 이미지 | 완료. 필터 함수로 답변의 썸네일 줄(누르면 펼침)과 출처 팝업 이미지, 가로·세로 문서, v0.11.3 화면에서 확인 (2-20) |
 | 오프라인 서버 시험 | 진행 중. 사용자가 sif로 앱 실행, 문서 하나 삭제 실패 버그를 찾아 고침(2-17). 고친 내용과 쪽 이미지 기능은 아직 서버에 반영 전. 다음 반입은 ToolPDF를 넣은 새 묶음으로 한다 (2-20, 2-22) |
-| PDF 엔진 ToolPDF | 완료. 모든 PDF 처리를 HTTP API로, 테스트 70개(두 전송 방식), Docker 스택과 배포 묶음에 포함 (2-22) |
+| PDF 엔진 ToolPDF | 완료. 모든 PDF 처리를 HTTP API로, 테스트 78개(두 전송 방식), Docker 스택과 배포 묶음에 포함 (2-22) |
 | WSL에서 구동 | 보류(사용자 결정, 나중에) |
 | 운영 대상(vLLM, 큰 VL 모델)으로 검증 | 아직 안 함. 운영 VLM은 Qwen3-VL(사용자 서버에서 운영 중) |
 
@@ -340,6 +341,18 @@
 - `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
 - Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
 
+### 2-28. 에이전트 설명서와 규칙 화면 (10-09)
+
+- `docs/AGENTS.md`: 에이전트 7개의 역할, 판단 기준과 기본값, VLM을 쓰는 곳, `rule_id` 목록, 기준 바꾸는 법.
+- **"에이전트 규칙" 화면(`/#rules`)**: 에이전트별 탭에서 규칙 값을 바꾸고 "저장하고 적용"하면 서버 재시작 없이 다음 실행부터 쓴다.
+  - 들어가는 길: 왼쪽 아래 버튼, 실행 화면의 단계 상자 누르기, 근거 상세의 "이 단계 규칙 보기·바꾸기", 주소 `/#rules/<에이전트>`.
+  - 항목은 `backend/app/tools/rules_schema.py` `FIELDS` 한 곳에 정의(설명, 기본값, 범위). 화면이 이것으로 그려지고 서버가 저장할 때 검사한다. 쪽 분류 규칙은 표에서 조건·순서를 편집.
+  - 바꾼 항목만 `<데이터 폴더>/strategy_rules.override.yaml`에 저장(`config/strategy_rules.yaml`은 그대로). 항목·탭·전체 기본값 되돌리기. 저장 뒤 열려 있던 문서를 바로 다시 실행하는 버튼.
+  - 실행마다 규칙 버전(`plan.rules_version`)과 화면에서 바꾼 값 사용 여부를 근거에 남긴다. 권한은 저장 위치 설정과 같다.
+- 시험에서 찾은 문제: 스크립트가 한글을 cp949로 깨뜨려 보낸 값이 그대로 저장되어 규칙 읽기가 500이 됐다. 깨진 글자는 거부하고, 쓸 수 없는 덮어쓰기 파일은 무시하고 기본 규칙으로 처리하며 화면에 이유를 보이게 했다.
+- 확인: 테스트 8개 추가(전체 78개, 두 전송 방식). Docker 앱에서 화면 캡처(콘텐츠 분석·청킹 탭, 바꿈 표시), 값 변경 직후 실행이 재시작 없이 새 값(min_tokens 96)으로 처리됨, 기본값 되돌리기.
+- 그 밖에: `tests/conftest.py` 주석의 예전 저장소 언급을 지웠다.
+
 ### 2-19. 기타 (10-05~07)
 
 - Open WebUI의 임베딩·rerank를 모델 서버에 맡기는 설정 예시(`deploy/README.md` 8절)
@@ -468,7 +481,7 @@ stop_test.bat                                    # Windows: 중지 (모델과 da
 docker compose up -d --build                     # 스크립트 없이 직접 시작
 python scripts/eval_vlm.py --models config/models.docker-host.yaml --name "Ollama qwen2.5vl:7b"                       # 합성 세트
 python scripts/eval_vlm.py --cases evals/samples/cases.json --models config/models.docker-host.yaml --name "..."     # 실제 문서 10종
-cd backend && ../.venv/Scripts/python -m pytest -q                                                                   # 테스트 70개 (../ToolPDF 의 ToolPDF를 직접 띄움)
+cd backend && ../.venv/Scripts/python -m pytest -q                                                                   # 테스트 78개 (../ToolPDF 의 ToolPDF를 직접 띄움)
 python scripts/build_offline_bundle.py --singularity                                                                 # 배포 묶음 (Docker + Singularity + ToolPDF, release/)
 ./singularity.sh start | ./singularity.sh status                                                                     # 오프라인 서버: ToolPDF + 모델 서버 + 앱 (deploy/README.md 5-B)
 ```

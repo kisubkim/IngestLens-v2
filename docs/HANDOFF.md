@@ -25,12 +25,13 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| 에이전트 규칙 화면 (10-09) | 완료 | `/#rules`: 에이전트별 규칙 값을 화면에서 바꾸고 바로 적용. 검사, 바꾼 항목만 데이터 폴더에 저장, 실행마다 규칙 버전 기록. 설명 `docs/AGENTS.md` |
 
 ### 검증 수준: 이어받는 사람이 가장 먼저 알아야 할 것
 
 | 항목 | 검증 방법 | 실제 환경 검증 |
 |---|---|---|
-| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 70개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
+| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 78개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
 | PDF 엔진 ToolPDF | 테스트가 ToolPDF를 직접 띄움(`tests/conftest.py`), Docker 스택, Windows `start_local.bat` | ToolPDF를 넣은 묶음을 이 PC에서 Docker(`install.sh`)와 Apptainer(`singularity.sh start`)로 확인(10-09). 실제 오프라인 서버에서는 아직 |
 | Windows PC (Docker 없이) | `setup_local.bat`, `start_local.bat`, `stop_local.bat` | Windows용 Ollama 0.40.1(`qwen2.5vl:7b`, `bge-m3`)로 `docs/WINDOWS.md` 3절 순서 그대로 확인. 한국어 실제 스캔 OCR까지(10-09) |
 | VLM (OCR, 그림, 표, 분류) | 코드 mock, HTTP mock, **Ollama `qwen2.5vl:7b`** (Docker, 2026-10-04) | 실제 VL 모델로 응답 형식 확인: `TYPE:` 첫 줄, OCR 제목 분리, 차트 표, 분류 JSON 모두 동작. 합성 세트에서 7b 92%·3b 86%, 실제 공개 문서 10종에서 7b 92%·3b 51%(7절). **vLLM과 큰 모델로는 아직 안 함** |
@@ -57,7 +58,7 @@ IngestLens-v2/
     tools/      toolpdf(PDF 엔진 클라이언트, 유일한 연결 지점), pdf(쪽 분류 규칙), figures, office(형식 판별), vlm, vlm_output, vlm_checks, embedding, reranker, lexical, chunking, vectorstore, purge
     models.py   Document, Run, Event, Decision, PageProfile, Element, Chunk
     events.py   emit_event / record_decision + SSE fan-out
-  backend/tests/   pytest 70개 (conftest가 ToolPDF를 띄움, test_openwebui_filter는 Open WebUI 쪽 이미지 필터, fixtures/sample.pdf, minipdf.py로 만드는 작은 PDF, office_fixtures)
+  backend/tests/   pytest 78개 (conftest가 ToolPDF를 띄움, test_openwebui_filter는 Open WebUI 쪽 이미지 필터, fixtures/sample.pdf, minipdf.py로 만드는 작은 PDF, office_fixtures)
   config/     models.yaml (모델 endpoint 템플릿), models.docker.yaml (Docker 스택용), models.docker-host.yaml (호스트에서 Docker 스택의 모델 쓰기), models.windows.yaml (Windows용 Ollama), strategy_rules.yaml (모든 규칙과 파라미터)
   docker/     app.Dockerfile, model-server/ (임베딩+rerank 모델 서버: server.py, 개발용 Dockerfile, 운영용 release.Dockerfile), certs/ (추가 신뢰 CA)
   docker-compose.yml   로컬 검증 스택: app + ToolPDF(../ToolPDF에서 빌드) + Ollama + reranker(모델 서버, CPU)
@@ -69,7 +70,7 @@ IngestLens-v2/
   frontend/   React + Vite. build 결과물 dist/는 FastAPI가 / 경로로 서빙
   scripts/    mock_vllm, bench_large, eval_profile, eval_retrieval, eval_vlm, build_offline_bundle, _inproc(평가 스크립트 공용)
   evals/      synthetic/ (합성 평가 세트), vlm/ (합성 VLM 평가 세트), samples/ (실제 공개 문서 10종, 출처는 SOURCES.md), reports/ (측정 보고서), results/vlm/ (VLM 평가 결과 JSON, 화면에서 비교), README.md
-  docs/       PLAN.md, HANDOFF.md (이 문서), WINDOWS.md (Windows PC 설치·실행 가이드), EMBEDDING_MODELS.md (임베딩 모델 후보와 교체 방법)
+  docs/       PLAN.md, HANDOFF.md (이 문서), AGENTS.md (에이전트별 역할과 판단 기준, rule_id 목록), WINDOWS.md (Windows PC 설치·실행 가이드), EMBEDDING_MODELS.md (임베딩 모델 후보와 교체 방법)
 ../ToolPDF/   PDF 엔진(별도 저장소, AGPL-3.0). 테스트, Docker 스택, 배포 묶음이 이 위치를 기본으로 찾는다
 ```
 
@@ -92,8 +93,8 @@ git clone https://github.com/kisubkim/ToolPDF ../ToolPDF
 python -m venv .venv
 .venv/Scripts/pip install -r backend/requirements-dev.txt     # Linux: .venv/bin/pip
 cd frontend && npm install && npm run build && cd ..
-cd backend && ../.venv/Scripts/python -m pytest -q             # 70 passed 확인 (공유 폴더 방식)
-RAG_TOOLPDF_TRANSFER=http ../.venv/Scripts/python -m pytest -q # 70 passed 확인 (HTTP 방식)
+cd backend && ../.venv/Scripts/python -m pytest -q             # 78 passed 확인 (공유 폴더 방식)
+RAG_TOOLPDF_TRANSFER=http ../.venv/Scripts/python -m pytest -q # 78 passed 확인 (HTTP 방식)
 ../ToolPDF/.venv/Scripts/python -m uvicorn --app-dir ../ToolPDF toolpdf.server:app --port 8095 &   # 서버를 띄울 때는 ToolPDF 먼저
 ../.venv/Scripts/python -m uvicorn app.main:app --port 8000
 ```
@@ -355,6 +356,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - **ToolPDF API 규약은 ToolPDF README다**: 문서에 없는 동작에 기대지 않는다. 새로 필요한 PDF 기능은 `tools/toolpdf.py`에 문서화된 엔드포인트로 추가하고, 이 저장소에 PDF 라이브러리를 들이지 않는다.
 - **SQLite는 timezone을 저장하지 않는다**: `to_dict`에서 UTC로 붙인다. 화면 캡처에서 9시간 차이로 발견했다.
 - **내장 Qdrant는 경로당 client 하나만 허용**한다. 항상 `vectorstore.client()`를 쓴다.
+- **에이전트 규칙 화면은 바로 적용된다(저장 위치 설정과 다름)**: `rules_cfg()` 캐시를 저장 때 비운다. 바꾼 값은 `<데이터 폴더>/strategy_rules.override.yaml`(바꾼 항목만). 시험 중 Windows의 Python이 한글을 cp949로 출력해 깨진 글자(외짝 서로게이트)를 보냈더니 그대로 저장되어 규칙 읽기가 500으로 멈췄다. 이제 깨진 글자는 저장 때 거부하고, 쓸 수 없는 덮어쓰기 파일은 무시하고 기본 규칙으로 처리한다(`test_rules.py`). API를 스크립트로 부를 때는 UTF-8로 보낸다.
 - **저장 위치 설정은 재시작해야 적용된다**: DB engine과 Qdrant client를 import 시점에 만든다. 설정 파일(`RAG_SETTINGS_FILE`)은 환경 변수와 `.env`보다 우선순위가 낮다. 그래서 `RAG_DATA_DIR`을 환경 변수로 주면 화면에서는 잠긴다.
 - **파일 경로는 데이터 폴더 기준 상대 경로로 저장한다**(`settings.stored_path` / `settings.resolve`). 새 코드에서 `Document.path`나 `pdf_path`를 읽을 때 `Path(...)`로 바로 열지 말고 `settings.resolve()`를 거친다.
 - **asyncio Semaphore는 이벤트 루프에 묶인다**: TestClient는 테스트마다 새 루프를 쓰므로 VLM semaphore를 루프별로 만든다.

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from ..config import models_cfg, rules_cfg
+from ..config import models_cfg, rules_cfg, rules_override, rules_version
 from ..db import session
 from ..events import record_decision
 from ..models import PageProfile
@@ -90,7 +90,8 @@ async def strategy(state: PipelineState) -> dict:
         run_id, STEP, "chunking", f"{strat} (target {target} tokens, overlap {overlap}, min {min_tokens})",
         rule_id=rule,
         inputs={"format": fmt, "body_font_size": body, "heading_min_size": heading_min, "heading_page_ratio": heading_ratio,
-                "section_min_page_ratio": cfg["section_min_page_ratio"], "embedding_max_tokens": emb_max},
+                "section_min_page_ratio": cfg["section_min_page_ratio"], "embedding_max_tokens": emb_max,
+                "rules_version": rules_version(), "rules_changed_on_screen": bool(rules_override())},
         alternatives=alternatives, confidence=0.8, reasoning=why + " Tables and figures are always kept as separate chunks.",
     )
 
@@ -98,6 +99,7 @@ async def strategy(state: PipelineState) -> dict:
         "parsers": mapping,
         "parser_usage": dict(used),
         "heading_min_size": heading_min,
+        "rules_version": rules_version(),
         "chunking": {"strategy": strat, "target_tokens": target, "overlap_tokens": overlap, "min_tokens": min_tokens,
                      "chars_per_token": cpt},
     }

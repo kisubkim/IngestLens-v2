@@ -37,7 +37,7 @@ function Value({ v }: { v: unknown }) {
   return <>{String(v)}</>;
 }
 
-function DecisionDetail({ d }: { d: Decision }) {
+function DecisionDetail({ d, onOpenRules }: { d: Decision; onOpenRules?: (step: string) => void }) {
   return (
     <div className="decision">
       <div className="decision-head">
@@ -49,6 +49,11 @@ function DecisionDetail({ d }: { d: Decision }) {
         <dt>규칙</dt>
         <dd>
           <code>{d.rule_id ?? "—"}</code>
+          {onOpenRules && (
+            <button className="link" title="이 단계가 판단에 쓰는 값을 보고 바꾼다" onClick={() => onOpenRules(d.step)}>
+              이 단계 규칙 보기·바꾸기
+            </button>
+          )}
         </dd>
         <dt>신뢰도</dt>
         <dd>
@@ -199,7 +204,12 @@ function SummaryCards({ summary }: { summary: Record<string, any> }) {
   );
 }
 
-export default function RunView({ runId, documentId, onFinished }: { runId: string; documentId: string; onFinished: () => void }) {
+export default function RunView({ runId, documentId, onFinished, onOpenRules }: {
+  runId: string;
+  documentId: string;
+  onFinished: () => void;
+  onOpenRules?: (step: string) => void;
+}) {
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
@@ -249,7 +259,11 @@ export default function RunView({ runId, documentId, onFinished }: { runId: stri
       <div className="pipeline">
         {steps.map((s, i) => (
           <div key={s} className="pipe-item">
-            <div className={`node ${states[s]}`}>
+            <div
+              className={`node ${states[s]}${onOpenRules ? " clickable" : ""}`}
+              title={onOpenRules ? "누르면 이 단계의 규칙을 보고 바꿀 수 있습니다" : undefined}
+              onClick={() => onOpenRules?.(s)}
+            >
               <div className="node-name">{STEP_LABELS[s] ?? s}</div>
               <div className="node-sub">{s}</div>
               {progress[s] && states[s] === "running" && (
@@ -335,7 +349,7 @@ export default function RunView({ runId, documentId, onFinished }: { runId: stri
           </ol>
         </section>
         <section className="card detail">
-          {selected ? <DecisionDetail d={selected} /> : <div className="muted">왼쪽 로그에서 결정 항목을 선택하면 근거가 표시됩니다.</div>}
+          {selected ? <DecisionDetail d={selected} onOpenRules={onOpenRules} /> :<div className="muted">왼쪽 로그에서 결정 항목을 선택하면 근거가 표시됩니다.</div>}
         </section>
       </div>
 
