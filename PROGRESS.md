@@ -12,6 +12,9 @@
 - 10-08: Open WebUI 답변과 출처 팝업에 쪽 이미지 보여주기, 가로 문서 시험, 화면의 Open WebUI 파일 이름 정리, 앱 sif `20261008`(실제 모델로 동작 확인)
 - 10-08~09: PDF 처리를 모두 PDF 엔진 ToolPDF(별도 프로그램, HTTP API)로, 라이선스 MIT, 배포 묶음에 ToolPDF 포함
 - 10-09: Windows PC 가이드(`docs/WINDOWS.md`)와 Docker 없는 실행 스크립트(`setup_local.bat`, `start_local.bat`, `stop_local.bat`)
+- 10-09: Windows용 Ollama와 Singularity 묶음 확인, IngestLens + Open WebUI 시험 환경 스크립트(`start_webui_test.bat`, `stop_webui_test.bat`)
+- 10-09: Open WebUI 채팅 모델 `gemma4:e4b`, 쪽 이미지 필터 0.4.0(답과 상관없는 썸네일 문제 수정)
+- 10-09: 공개 센서 데이터시트 4종(22~60쪽)으로 Open WebUI 전체 흐름 시험. 짧은 청크 병합이 필요함을 확인
 
 ## 1. 한눈에 보기
 
@@ -30,7 +33,7 @@
 | Open WebUI 연동 | 완료. v0.11.3으로 파일 추가 → 처리 → 지식 베이스 → LLM 답변까지 확인, `deploy/OPENWEBUI.md` (2-18) |
 | Open WebUI 답변에 쪽 이미지 | 완료. 필터 함수로 답변의 썸네일 줄(누르면 펼침)과 출처 팝업 이미지, 가로·세로 문서, v0.11.3 화면에서 확인 (2-20) |
 | 오프라인 서버 시험 | 진행 중. 사용자가 sif로 앱 실행, 문서 하나 삭제 실패 버그를 찾아 고침(2-17). 고친 내용과 쪽 이미지 기능은 아직 서버에 반영 전. 다음 반입은 ToolPDF를 넣은 새 묶음으로 한다 (2-20, 2-22) |
-| PDF 엔진 ToolPDF | 완료. 모든 PDF 처리를 HTTP API로, 테스트 61개(두 전송 방식), Docker 스택과 배포 묶음에 포함 (2-22) |
+| PDF 엔진 ToolPDF | 완료. 모든 PDF 처리를 HTTP API로, 테스트 70개(두 전송 방식), Docker 스택과 배포 묶음에 포함 (2-22) |
 | WSL에서 구동 | 보류(사용자 결정, 나중에) |
 | 운영 대상(vLLM, 큰 VL 모델)으로 검증 | 아직 안 함. 운영 VLM은 Qwen3-VL(사용자 서버에서 운영 중) |
 
@@ -282,7 +285,8 @@
 - 배포 묶음: `build_offline_bundle.py`가 ToolPDF의 배포 폴더(`docker/release.sh`가 만든 `release/toolpdf-<버전>/`: Docker 이미지, `.sif`, ToolPDF 소스, PyMuPDF 소스, 라이선스)를 `toolpdf/`로 그대로 넣는다. AGPL 소스 제공을 ToolPDF가 정한 방식 그대로 채우기 위해서다.
   - `deploy/docker-compose.yml`에 `toolpdf` 서비스(포트는 밖에 열지 않음), `install.sh`가 ToolPDF 이미지도 불러온다. `.env`에 `TOOLPDF_VERSION`.
   - `singularity.sh`에 `start-pdf`/`stop pdf`/`logs pdf`. `start`는 ToolPDF → 모델 서버 → 앱 순서. Singularity는 호스트 네트워크라 ToolPDF 포트가 열리므로 묶음의 `singularity.env`에 임의의 `TOOLPDF_API_KEY`를 넣는다.
-- 확인(10-09): 묶음 376MB. WSL의 Docker Engine에서 묶음만으로 설치해 상태의 PDF 엔진 정상, PDF 6쪽과 pptx 4장 처리 성공. Singularity 묶음과 오프라인 서버는 아직.
+- 확인(10-09): 묶음 376MB. WSL의 Docker Engine에서 묶음만으로 설치해 상태의 PDF 엔진 정상, PDF 6쪽과 pptx 4장 처리 성공.
+- Singularity 묶음 확인(10-09): `--singularity` 묶음 4,409MB. Apptainer 1.4.5 컨테이너에서 `singularity.sh start`로 ToolPDF, 모델 서버(CPU, bge-m3 + bge-reranker-v2-m3), 앱 `.sif` 세 개를 띄웠다. 상태의 PDF 엔진(공유 폴더, 임의 키)·임베딩·reranker 정상, PDF 6쪽과 pptx 4장 처리, `/tokenize`로 토큰 비율 2.521 측정, hybrid+rerank 검색, `status`, `stop`까지. 오프라인 서버와 GPU(`--nv`)는 아직.
 - 문서 정리: README, HANDOFF, PLAN, evals/README, deploy 문서를 ToolPDF 구조에 맞췄다. 평가 세트는 저장소에 커밋된 파일이 기준이다.
 
 ### 2-23. Windows PC에서 Docker 없이 실행 (10-09)
@@ -291,7 +295,50 @@
 - `setup_local.bat`: ToolPDF가 없으면 받고(git), 두 저장소의 `.venv`와 패키지, 화면 빌드. 다시 실행해도 된다.
 - `start_local.bat`: 앱 포트가 비었는지 먼저 보고, ToolPDF와 앱을 창 하나씩 띄워 응답을 기다린 뒤 브라우저를 연다. 포트, 받을 주소, ToolPDF 위치를 환경 변수로 바꾼다. `stop_local.bat`: 실행 명령으로 두 서버를 찾아 창째 끈다.
 - `config/models.windows.yaml`: Windows용 Ollama(127.0.0.1:11434) 템플릿. `.env`에 `RAG_MODELS_FILE=config/models.windows.yaml` 한 줄로 쓴다. 이를 위해 경로 설정의 상대 경로를 저장소 폴더 기준으로 바꿨다(`config.py`).
-- 확인: 세 스크립트를 이 PC에서 실행. 설치와 화면 빌드, 시작 약 9초, 포트 충돌 검사(ToolPDF를 띄우지 않고 멈춤), 중지 후 포트 해제. Docker의 Ollama(`qwen2.5vl:7b`, `bge-m3`)와 reranker에 연결해 sample.pdf 6쪽을 VLM OCR·그림 설명까지 처리하고 hybrid+rerank 검색. Windows용 Ollama 자체로의 연결은 이 PC의 Ollama에 모델이 없어 시험하지 못했다. 테스트 61개 통과.
+- 확인: 세 스크립트를 이 PC에서 실행. 설치와 화면 빌드, 시작 약 9초, 포트 충돌 검사(ToolPDF를 띄우지 않고 멈춤), 중지 후 포트 해제. Docker의 Ollama(`qwen2.5vl:7b`, `bge-m3`)와 reranker에 연결해 sample.pdf 6쪽을 그림 설명까지 처리하고 hybrid+rerank 검색. 테스트 61개 통과.
+- Windows용 Ollama 확인(10-09, 사용자 승인으로 모델 약 7GB 받음): `docs/WINDOWS.md` 3절 순서 그대로(`.env` 한 줄, Ollama 환경 변수는 기본값). 상태 정상, sample.pdf 첫 실행 193초(Ollama가 모델 형식을 바꾸며 VLM을 두 번 올림), 다음 12초. 한국어 실제 스캔 `ko_scan_kostat.pdf` 3쪽 OCR 84초, 청크 12개.
+  - sample.pdf 5쪽 OCR이 빈 답(`'#'`)이라 처음에는 Ollama 0.40의 이미지 인식 문제로 의심했지만, 그 쪽은 글자 없는 회색 이미지였다. 텍스트 쪽은 두 Ollama 모두 정확히 읽었다. HANDOFF 9절에 함정으로 남겼다.
+  - 가이드의 Ollama 환경 변수 설정을 "선택"으로 바꿨다. 0.40.1은 기본 문맥이 16384였다.
+
+### 2-24. IngestLens + Open WebUI 시험 환경 스크립트 (10-09)
+
+- 사용자가 혼자서도 화면으로 시험할 수 있게 `start_webui_test.bat` / `stop_webui_test.bat`을 만들었다. 실제 동작은 WSL 안에서 도는 `scripts/webui_test.sh`(`up`, `status`, `down`)에 있다.
+  - `up`: IngestLens 스택(`docker-compose.yml`)이 이미 떠 있으면 건너뛰고, 아니면 `up -d --build`. Open WebUI 컨테이너(`owui-test`, 데이터 볼륨 `owui-test-data`)는 켜져 있으면 건너뛰고, 꺼져 있으면 켜고, 없으면 `deploy/OPENWEBUI.md`와 같은 설정으로 만든다. 스택 네트워크에 붙여 `app`, `ollama`, `reranker` 이름으로 찾게 한다. 그다음 PDF 엔진·임베딩·VLM·reranker·Open WebUI가 모두 응답할 때까지 기다리고 두 화면을 연다.
+  - `down`: Open WebUI를 끄고 네트워크에서 뗀 뒤 스택을 내린다. 모델, 문서, Open WebUI 계정·지식 베이스는 남는다.
+- 시험에서 찾은 버그: `compose down`/`up`이 네트워크를 새로 만들면 꺼져 있던 Open WebUI가 예전 네트워크 ID 때문에 시작되지 않았다(`network ... not found`). 시작 전에 끊고 다시 붙이도록 고쳤다(HANDOFF 9절).
+- 확인: (1) 모두 떠 있을 때 둘 다 건너뛰고 상태만 확인, (2) 모두 내린 뒤 다시 띄우기(빌드 캐시가 있을 때 약 1분), (3) Open WebUI 컨테이너가 없을 때 새로 만들기(임시 이름·볼륨·포트로 시험 후 삭제) 모두 통과. 세 경우 모두 Open WebUI 안에서 앱, Ollama, reranker에 연결됐다.
+- 가이드: `docs/WINDOWS.md` 7-1절, README 시작하기 표.
+- Open WebUI 시험 계정은 `admin@example.com`(관리자 하나). 비밀번호는 10-09에 사용자가 정한 시험용 값으로 바꿨다(공개 저장소라 여기에는 적지 않는다).
+
+### 2-25. Open WebUI 채팅 모델과 쪽 이미지 필터 0.4.0 (10-09)
+
+- **채팅 모델:** `qwen2.5vl:7b`로는 Open WebUI 답변이 비는 일이 잦았다(대화 기록: 문서 전체를 정리해 달라는 질문들의 답이 빈 문자열). Open WebUI 기본 채팅 모델을 `gemma4:e4b`(6.6GB)로 바꿨다. `docker-compose.yml`의 `CHAT_MODEL`을 `ollama-pull`이 받고, `scripts/webui_test.sh`가 `DEFAULT_MODELS`/`TASK_MODEL`로 정한다. 설정을 바꾼 뒤 컨테이너만 다시 만드는 `recreate` 명령을 더했다. 지식 베이스 질문 6개에 모두 정확히 답했다(13~62초, 첫 질문은 모델 로드 포함).
+- **썸네일이 답과 상관없는 쪽(회사 시험에서 보고):** 새 지식 베이스("썸네일 재현", `ko_chart_kostat.pdf`, `en_paper_docling.pdf`)로 재현했다. 칠한 영역은 그 청크로서는 정확했고, 문제는 고르는 방식이었다. Open WebUI가 출처로 넘기는 검색 청크 5개를 필터가 순서대로 앞에서 3쪽 보여줬다. 예: "혼인 건수" 답에 이혼 통계(5쪽), "표 인식 모델" 답에 초록(1쪽)과 무관한 2쪽, "처리 속도" 답에 점수 0.21의 1쪽.
+- **고침(필터 0.4.0):** 답변과 각 청크에 함께 나오는 숫자, 영어 단어(앞 6글자), 한글 두 글자 조각으로 점수를 매기고, 출처 청크 대부분에 나오는 말은 가볍게 센다. 최소 0.3, 1등의 65% 이상인 청크의 쪽만 보여준다. 맞는 것이 없으면 검색 1위 쪽 하나. 예전 방식은 밸브 `SELECT=rank`. 질문 6개 모두 답의 근거 쪽만 남았다. Open WebUI의 `/api/chat/completed` 경로(화면이 답변 뒤에 부르는 것)로도 확인했고, 그 대화 3개가 "[썸네일 재현]" 제목으로 남아 있다.
+- 회귀 테스트 `backend/tests/test_openwebui_filter.py`(4개, 전체 65개). 가이드 `deploy/OPENWEBUI.md` 10-3에 고르는 방식과 밸브를 적었다.
+- 기존 "IngestLens 시험" 지식 베이스는 예전 실행의 청크 ID를 갖고 있어 지금 앱에서는 썸네일이 깨진 그림(404)이 된다. 문서를 다시 넣으면 된다.
+
+### 2-26. 공개 센서 데이터시트 시험 (10-09)
+
+- 문서: 제조사가 공개한 데이터시트 4종. Sensirion SHT3x-DIS(22쪽, 2022-12 v7), ST LIS3DH(42쪽, Adafruit 사본), InvenSense MPU-6000/6050 제품 사양서(57쪽, SparkFun 사본), Bosch BME280(60쪽). ST와 TDK 사이트는 자동 다운로드를 막아 부품 판매사 사본을 받았다. 저장소에는 넣지 않았다(재배포 조건 미확인).
+- 흐름: Open WebUI 지식 베이스 "센서 데이터시트"에 추가 → 문서 로더가 IngestLens(Docker 스택)로 처리 → `gemma4:e4b`로 질문. 처리 283·236·218·429초, 경고 0(HANDOFF 7절).
+- 질문 9개 중 7개 정답(SHT3x I2C 주소 0x44/0x45와 공급 전압 2.15~5.5V, LIS3DH ±2/4/8/16g, MPU-6000 자이로 ±250~2000°/s, BME280 chip ID 0xD0=0x60·습도 ±3%RH·forced mode). 썸네일은 답한 경우 모두 정답 쪽이었고 칠한 영역도 맞았다(예: SHT3x 9쪽 Table 8, BME280 26쪽 Table 17). 예전 필터였다면 9개 중 8개에서 상관없는 쪽이 섞였다.
+- 오답 2개는 청크 문제다. LIS3DH WHO_AM_I: 8.6절이 제목·값 표·설명의 세 청크(8·36·14토큰)로 나뉘어 주소와 값이 한 청크에 없다. MPU-6000 I2C 주소: 정답 문장이 400토큰짜리 섞인 청크에 있어 hybrid+rerank 8위, Open WebUI는 상위 5개만 쓴다. HANDOFF 6절의 "짧은 청크 병합"을 우선으로 올렸다.
+- 썸네일을 60dpi로 받으면 얇은 주황 테두리가 거의 안 보인다. 필터 기본값 110dpi에서는 잘 보인다.
+- Open WebUI에 지식 베이스 "센서 데이터시트"가 남아 있어 화면에서 같은 질문을 해 볼 수 있다.
+
+### 2-27. 짧은 청크 합치기 (10-09)
+
+- `strategy.min_tokens`(기본 128): 같은 절 안에서 짧은 청크를 다음(안 되면 앞) 청크와 합친다. 최대 `target + min`, 합친 청크는 모든 쪽·칠할 영역 유지, 겹침으로 넘어온 부분은 다시 넣지 않음. 근거 `chunk_merge`. 제목 첫 줄이 번호뿐이면("8.6") 다음 줄까지 절 이름으로 쓴다(`section_name`). 테스트 70개(두 전송 방식) 통과.
+- 권장 설정 조합: `deploy/OPENWEBUI.md` 4-4(Open WebUI `CHUNK_MIN_SIZE_TARGET=0` 이유 포함).
+- 다시 처리하면서 찾은 버그: 번호와 제목이 두 줄인 제목("7⏎Register mapping")에서 절 이름("7 Register mapping")이 본문 앞에 한 번 더 붙었다. 공백을 접어 비교하도록 고쳤다(테스트 포함).
+- 확인(HANDOFF 7절, `deploy/OPENWEBUI.md` 4-4):
+  - 합성 세트 검색 22문항: hybrid+rerank hit@1 95% → 100%, hybrid 86 → 91%, dense만 95 → 86%. 청크 38 → 25.
+  - 데이터시트 4종 청크 1,314 → 869. LIS3DH WHO_AM_I가 제목·값·설명 한 청크(54토큰)가 됐다.
+  - 질문 9개(Open WebUI, `gemma4:e4b`): TOP_K 5에서 6개, TOP_K 10에서 7개 정답(합치기 전 TOP_K 5는 7개). BM25 비중 0.8은 더 나빴다. 남은 오답 두 개는 검색 문제(짧은 청크의 dense 순위, 절 두 번째 청크)로 HANDOFF 6절에 올렸다.
+  - 로컬 CPU reranker는 커진 청크 20개를 60초 안에 rerank하지 못해 시간 초과가 났다(운영 GPU와 무관).
+- `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
+- Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
 
 ### 2-19. 기타 (10-05~07)
 
@@ -421,7 +468,7 @@ stop_test.bat                                    # Windows: 중지 (모델과 da
 docker compose up -d --build                     # 스크립트 없이 직접 시작
 python scripts/eval_vlm.py --models config/models.docker-host.yaml --name "Ollama qwen2.5vl:7b"                       # 합성 세트
 python scripts/eval_vlm.py --cases evals/samples/cases.json --models config/models.docker-host.yaml --name "..."     # 실제 문서 10종
-cd backend && ../.venv/Scripts/python -m pytest -q                                                                   # 테스트 61개 (../ToolPDF 의 ToolPDF를 직접 띄움)
+cd backend && ../.venv/Scripts/python -m pytest -q                                                                   # 테스트 70개 (../ToolPDF 의 ToolPDF를 직접 띄움)
 python scripts/build_offline_bundle.py --singularity                                                                 # 배포 묶음 (Docker + Singularity + ToolPDF, release/)
 ./singularity.sh start | ./singularity.sh status                                                                     # 오프라인 서버: ToolPDF + 모델 서버 + 앱 (deploy/README.md 5-B)
 ```

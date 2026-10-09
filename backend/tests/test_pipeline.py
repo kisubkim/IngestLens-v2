@@ -239,7 +239,8 @@ def test_vlm_parsers_with_mock(sample_pdf, monkeypatch):
         assert not any(e["content"].startswith("그림 1.") for e in page5 if e["type"] == "text")
 
         chunks = client.get(f"/api/runs/{run['id']}/chunks").json()["items"]
-        assert any(c["element_types"] == ["figure"] and "그림 1." in c["text"] for c in chunks)
+        # The caption travels with its figure (short chunks of the same section may be merged in, strategy.min_tokens).
+        assert any("figure" in c["element_types"] and "그림 1." in c["text"] for c in chunks)
 
 
 def test_cancel_run(sample_pdf, monkeypatch):

@@ -10,6 +10,7 @@
 x-models: &models
   VLM_MODEL: qwen2.5vl:7b        # 더 작게: qwen2.5vl:3b
   EMBED_MODEL: bge-m3
+  CHAT_MODEL: gemma4:e4b         # Open WebUI 시험(start_webui_test.bat)의 채팅 모델. 앱은 쓰지 않는다
 
 services:
   ollama:
@@ -43,7 +44,7 @@ services:
     environment:
       <<: *models
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["sh", "-c", "ollama pull $$VLM_MODEL && ollama pull $$EMBED_MODEL"]
+    entrypoint: ["sh", "-c", "ollama pull $$VLM_MODEL && ollama pull $$EMBED_MODEL && ollama pull $$CHAT_MODEL"]
     depends_on:
       ollama:
         condition: service_healthy

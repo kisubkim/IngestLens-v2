@@ -55,9 +55,10 @@ CONTENT_EXTRACTION_ENGINE=external
 EXTERNAL_DOCUMENT_LOADER_URL=http://<IL>:8000/api/openwebui
 EXTERNAL_DOCUMENT_LOADER_API_KEY=<IngestLens 의 RAG_API_KEY 값>
 
-# ② IngestLens 청크를 다시 자르지 않기 (중요, 4-3)
+# ② IngestLens 청크를 다시 자르거나 합치지 않기 (중요, 4-3, 4-4)
 CHUNK_SIZE=8000
 CHUNK_OVERLAP=0
+CHUNK_MIN_SIZE_TARGET=0
 ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER=false
 
 # ③ 임베딩: 모델 서버의 bge-m3
@@ -105,6 +106,7 @@ docker run -d --name open-webui -p 3000:8080 \
 | (External) API 키 | IngestLens의 `RAG_API_KEY` |
 | 텍스트 분할기 / Markdown 헤더 분할 | 끔 |
 | 청크 크기 / 청크 겹침 | 8000 / 0 |
+| 청크 최소 크기 목표 | 0 (합치기는 IngestLens가 한다, 4-4) |
 | 임베딩 모델 엔진 | OpenAI |
 | API Base URL / 키 | `http://<MS>:8090/v1` / `EMPTY` |
 | 임베딩 모델 | `bge-m3` |
@@ -128,6 +130,44 @@ docker run -d --name open-webui -p 3000:8080 \
 
 - `CHUNK_SIZE=8000`은 IngestLens 청크보다 넉넉히 큰 값이다. IngestLens 청크는 약 500토큰(1,000~1,500자)이고, 긴 표도 IngestLens가 행 단위로 나눠 보낸다.
 - 이 설정은 Open WebUI의 모든 문서에 적용된다. 콘텐츠 추출 엔진이 External이면 모든 파일이 IngestLens를 거치므로 문제없다.
+
+### 4-4. 청크 설정 권장 조합 (IngestLens + Open WebUI)
+
+청크를 정하는 설정은 양쪽에 다 있다. **청크는 IngestLens가 만들고, Open WebUI는 받은 그대로 쓰게 한다.** IngestLens는 표, 그림, 절, 쪽 위치를 알고 청크를 만들지만, Open WebUI는 글자 수로만 자르고 합치기 때문이다.
+
+| 할 일 | 맡는 쪽 | 설정 | 권장값 | 이유 |
+|---|---|---|---|---|
+| 청크 크기 | IngestLens | `config/strategy_rules.yaml` `strategy.target_tokens` | 512 | 임베딩 모델 토큰 단위. bge-m3(8192)에 넉넉하고 검색 결과 하나가 한눈에 읽힌다 |
+| 앞 청크와 겹침 | IngestLens | `strategy.overlap_tokens` | 64 | 긴 본문이 크기 때문에 잘린 곳에서만 앞 청크 끝을 다음 청크 앞에 반복한다. 절·표·그림 경계에서는 겹치지 않는다 |
+| 짧은 청크 합치기 | IngestLens | `strategy.min_tokens` | 128 | 같은 절 안에서 이보다 짧은 청크(제목만, 한 줄짜리 레지스터 표, 한 줄 설명)를 다음(안 되면 앞) 청크와 합친다. 최대 `target + min`. 합친 청크는 모든 쪽과 칠할 영역을 유지한다 |
+| 다시 자르기 | Open WebUI | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 8000 / 0 | 글자 수 단위. IngestLens 청크(최대 약 640토큰, 1,600자 안팎. 큰 표 조각도 7,000자 미만)보다 크게 둬서 다시 자르지 않게 한다. 겹침은 IngestLens가 이미 넣었다 |
+| 합치기 | Open WebUI | `CHUNK_MIN_SIZE_TARGET` | 0 | Open WebUI도 짧은 청크를 합칠 수 있지만, 합칠 때 **앞 청크의 메타데이터만 남겨** 뒤 청크의 `chunk_id`·쪽이 사라진다(쪽 이미지가 일부만 가리킴). 또 Markdown 헤더 분할이 켜져 있을 때만 동작한다 |
+| Markdown 헤더 분할 | Open WebUI | `ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER` | false | 켜면 IngestLens 청크 안의 `#` 제목·표 머리에서 다시 쪼갠다 |
+| 검색 개수 | Open WebUI | `RAG_TOP_K` / `RAG_TOP_K_RERANKER` | 5 / 5, 데이터시트·매뉴얼처럼 비슷한 표와 문단이 많은 문서는 8~10 | 아래 시험. 늘리면 정답 청크가 들어올 기회가 늘지만 rerank와 답변이 느려진다 |
+| 키워드 비중 | Open WebUI | `RAG_HYBRID_BM25_WEIGHT` | 0.5 (기본) | 0.8로 올렸을 때 더 나빴다(아래 시험) |
+
+**짧은 청크 합치기가 필요한 이유 (2026-10-09, 공개 센서 데이터시트 4종):** 데이터시트의 레지스터 설명은 "8.6 WHO_AM_I (0Fh)" 제목, 비트 값 표 한 줄, 설명 한 줄이 이어진다. 합치기 전에는 이 셋이 8·36·14토큰짜리 청크 셋으로 나뉘어 주소와 값이 한 청크에 없었다. 합친 뒤에는 한 청크다. 64토큰 미만 청크가 문서마다 120~150개였다. `min_tokens: 128`이면 2~23개로 줄고(나머지는 절 하나가 통째로 짧은 경우), 청크 수는 30~40% 준다. 64 이상이면 레지스터 제목과 값이 한 청크가 되고 128보다 키워도 차이가 작다.
+
+**시험 결과 (2026-10-09, 로컬 Docker 스택: Ollama bge-m3, CPU reranker, 채팅 `gemma4:e4b`):**
+
+| 시험 | min_tokens 0 (합치기 전) | min_tokens 128 |
+|---|---|---|
+| 합성 세트 검색 22문항, IngestLens hybrid+rerank hit@1 | 95% (바꿔 쓴 질문 88%) | **100%** (100%) |
+| 같은 세트, hybrid / dense만 hit@1 | 86% / 95% | 91% / 86% |
+| 합성 세트 청크 수 | 38 | 25 |
+| 센서 데이터시트 4종 청크 수 | 1,314 | 869 |
+| 데이터시트 질문 9개, Open WebUI `RAG_TOP_K=5` | 7개 정답 | 6개 |
+| 같은 질문, `RAG_TOP_K=10` | — | 7개 (답 18~73초, CPU rerank) |
+| 같은 질문 중 어려운 3개, `TOP_K=10` + `BM25_WEIGHT=0.8` | — | 0개 |
+
+- Open WebUI가 쓰는 hybrid+rerank는 합치기로 좋아졌다. dense만 쓰는 검색은 청크가 커져 조금 떨어졌다.
+- 데이터시트에서 남은 오답 두 개는 합치기로 풀리지 않는 검색 문제다. LIS3DH WHO_AM_I는 이제 제목·값·설명이 한 청크(54토큰)지만, 한국어 질문과의 임베딩 순위가 20위(BM25로는 1위)라 Open WebUI가 가져오지 못했다. MPU-6000 I2C 주소는 정답 문장이 그 절의 두 번째 청크에 있어 1위 청크(절 첫 부분)만 들어왔다. 질문을 영어나 문서의 낱말(예: "WHO_AM_I register value")로 하면 더 잘 찾는다.
+- 질문 9개는 표본이 작고 답이 매번 조금씩 달라 한두 개 차이는 우연일 수 있다. 실제 문서로 평가 세트를 만들어 다시 재는 것이 좋다(`evals/README.md`).
+
+**값을 바꿀 때:**
+- `min_tokens`를 바꾸면 이미 처리한 문서는 IngestLens에서 다시 실행하고, Open WebUI 지식 베이스에도 다시 넣어야 새 청크가 쓰인다.
+- 슬라이드·시트처럼 쪽 단위로 자르는 문서(`page` 전략)는 쪽을 넘어 합치지 않는다. 절이 다르면 합치지 않는다.
+- 끄려면 `min_tokens: 0`. 처리마다 "근거" 탭에 `chunk_merge`(합치기 전후 청크 수)가 남는다.
 
 ## 5. 사용하기
 
@@ -239,13 +279,17 @@ docker run -d --name open-webui -p 3000:8080 \
 |---|---|---|
 | `INGESTLENS_URL` | `http://localhost:8000` | **사용자 PC의 브라우저**에서 열리는 IngestLens 주소. 3절의 주소(Open WebUI 서버에서 보는 주소)와 다를 수 있다 |
 | `MAX_PAGES` | 3 | 답변 하나에 보여줄 최대 쪽 수 |
+| `SELECT` | `answer` | 어떤 쪽을 보여줄지. `answer`: 답변 내용과 맞는 청크의 쪽만(0.4.0부터). `rank`: 예전 방식, 검색 순서대로 앞의 쪽 |
+| `MIN_MATCH` | 0.3 | `answer`에서 보여줄 최소 일치도(0~1). 가장 잘 맞는 청크의 65%에 못 미치는 청크도 뺀다 |
 | `THUMB_SIZE` | 220 | 썸네일의 긴 변(px) |
 | `BIG_HEIGHT` | 900 | 눌러서 크게 볼 때의 최대 높이(px). 폭은 답변 폭까지 |
 | `DPI` | 110 | 이미지 해상도. 썸네일, 크게 보기, 출처 팝업이 같은 이미지를 쓴다 |
 | `HIGHLIGHT` | 켬 | 청크 영역을 칠한 이미지. 끄면 쪽 전체 이미지 |
 | `SHOW_IN_CHAT` / `SHOW_IN_SOURCES` | 켬 | 썸네일 줄 / 출처 팝업에 넣을지 |
 
-- 썸네일은 그 답변에 쓰인 출처 쪽만 보여준다(같은 쪽은 한 번). 문서 전체 쪽수와는 관계없다. `MAX_PAGES`를 늘려 썸네일이 많아지면 다음 줄로 넘어가고, 칸 안에 스크롤은 생기지 않는다.
+- **어떤 쪽이 썸네일이 되나:** Open WebUI는 질문과 비슷한 청크를 몇 개(`RAG_TOP_K`, 보통 5) 가져와 모델에 주고, 그 전부를 답변의 출처로 저장한다. 그 가운데에는 답에 쓰이지 않은 청크(다른 주제, 낮은 점수)도 섞인다. 0.3.0까지는 이 출처를 순서대로 앞에서 3쪽 보여줘서, 답과 상관없는 쪽이 썸네일이 되곤 했다(예: "혼인 건수" 답에 이혼 통계 쪽, 표 인식 모델 답에 논문 초록 쪽). 0.4.0부터는 답변과 각 청크에 함께 나오는 숫자, 영어 단어, 한글 두 글자 조각을 비교해 **답이 실제로 쓴 청크의 쪽만** 점수 순으로 보여준다. 출처 청크에 공통으로 다 나오는 말(연도, 주제어)은 가볍게 센다. 맞는 청크가 없으면 검색 1위 쪽 하나만 보여준다.
+- 같은 쪽은 한 번만 보여준다. 문서 전체 쪽수와는 관계없다. `MAX_PAGES`를 늘려 썸네일이 많아지면 다음 줄로 넘어가고, 칸 안에 스크롤은 생기지 않는다.
+- 썸네일의 칠한 영역은 그 청크의 위치다. 쪽 이미지는 IngestLens가 만든 PDF에서 그리므로, IngestLens에서 문서를 지우거나 다시 실행해 청크가 바뀌면 예전 답변의 썸네일은 깨진 그림이 된다.
 
 ### 10-4. 필터를 새 버전으로 바꾸기
 
@@ -264,6 +308,7 @@ docker run -d --name open-webui -p 3000:8080 \
 | 썸네일 자리에 깨진 그림 | 사용자 PC에서 `INGESTLENS_URL`이 안 열림, 예전 앱, 또는 문서가 IngestLens에서 지워짐 | 10-5의 1번, 10-1의 앱 버전 |
 | `https` Open WebUI에서만 깨짐 | 혼합 콘텐츠 차단 | 10-6 |
 | 예전 답변에 이미지가 없음 | 필터를 켜기 전의 답변 | 새로 질문하거나 다시 생성한다 |
+| 썸네일이 답과 상관없는 쪽 | 필터 0.3.0 이하(검색 순서대로 보여줌) | 0.4.0으로 바꾼다(10-4). `SELECT` 밸브가 `answer`인지 본다 |
 
 ### 10-6. 주의
 

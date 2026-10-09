@@ -27,7 +27,7 @@ This app contains no PDF library. Every PDF operation (normalizing documents to 
 
 ## Commands
 
-First-time setup (from the repo root): `python -m venv .venv`, `.venv/Scripts/pip install -r backend/requirements-dev.txt`, then `npm install && npm run build` in `frontend/`. On Windows, `setup_local.bat` does this for both repositories (cloning ToolPDF if missing), `start_local.bat` runs ToolPDF and the app in one window each (`INGESTLENS_PORT`, `TOOLPDF_PORT`, `INGESTLENS_HOST`, `TOOLPDF_DIR`), and `stop_local.bat` stops them by command line. `docs/WINDOWS.md` is the end-user guide for a Windows PC; keep it in step with these scripts. In this tool environment run bat files as `.\name.bat` from PowerShell (the current folder is not searched), and through `Start-Process -WindowStyle Hidden` because the child windows keep the output pipe open.
+First-time setup (from the repo root): `python -m venv .venv`, `.venv/Scripts/pip install -r backend/requirements-dev.txt`, then `npm install && npm run build` in `frontend/`. On Windows, `setup_local.bat` does this for both repositories (cloning ToolPDF if missing), `start_local.bat` runs ToolPDF and the app in one window each (`INGESTLENS_PORT`, `TOOLPDF_PORT`, `INGESTLENS_HOST`, `TOOLPDF_DIR`), and `stop_local.bat` stops them by command line. `start_webui_test.bat`/`stop_webui_test.bat` run the Docker stack plus the Open WebUI test container (`owui-test`, volume `owui-test-data`) through `scripts/webui_test.sh up|status|down` inside WSL; already-running parts are skipped and it waits until every model answers. `docs/WINDOWS.md` is the end-user guide for a Windows PC; keep it in step with these scripts. In this tool environment run bat files as `.\name.bat` from PowerShell (the current folder is not searched), and through `Start-Process -WindowStyle Hidden` because the child windows keep the output pipe open.
 
 Relative paths in `RAG_DATA_DIR`, `RAG_MODELS_FILE` (and the rules/evals paths) resolve against the repository root, not the working directory (`config.py`).
 
@@ -76,7 +76,7 @@ Other configuration (`RAG_` env vars or `.env`): `RAG_DATA_DIR` (default `./data
 - Captions are moved into the nearest figure or table element (`tools/figures.py`). Ruled tables with many empty cells are re-extracted by the VLM.
 - An answer cut off at `vlm.max_tokens` is retried once with `vlm.max_tokens_retry` (decision `vlm_truncated_retry`). VLM failures fall back per page and never fail the run.
 
-**Chunking** (`tools/chunking.py`) works on elements. Titles set the section; `table`/`figure` elements are atomic, long tables are split by rows with the header repeated; the `page` strategy (slides, sheets) breaks at page boundaries. Budgets are in model tokens, converted with `chars_per_token` measured via `/tokenize` on ToolPDF's text sample (default 2.5).
+**Chunking** (`tools/chunking.py`) works on elements. Titles set the section; `table`/`figure` elements are atomic, long tables are split by rows with the header repeated; the `page` strategy (slides, sheets) breaks at page boundaries. Budgets are in model tokens, converted with `chars_per_token` measured via `/tokenize` on ToolPDF's text sample (default 2.5). `strategy.min_tokens` (128) then merges chunks under it into a neighbour of the same section (`merge_short`, never across pages in `page` mode, up to target + min), keeping all pages/bboxes and skipping repeated overlap; decision `chunk_merge`. A title whose first line is only a number ("8.6") names the section with its next line (`section_name`). Chunking belongs to IngestLens: Open WebUI must not re-split or merge (`deploy/OPENWEBUI.md` 4-4).
 
 **Retrieval** (`agents/retriever.py`): dense (filtered by `run_id`), BM25 (`tools/lexical.py`, Hangul bigrams, cached per run), `hybrid` (RRF k=60), optional reranker. Every hit returns a per-stage `scores` breakdown; keep it when you change ranking. **Vector store** (`tools/vectorstore.py`): embedded Qdrant by default; always use `vectorstore.client()`.
 
@@ -91,7 +91,8 @@ Other configuration (`RAG_` env vars or `.env`): `RAG_DATA_DIR` (default `./data
 
 ## Status and next steps (2026-10-09)
 
-- Code and tests (61, both transfer modes) work against ToolPDF; the Docker stack runs with ToolPDF in shared-folder mode.
+- Code and tests (70, both transfer modes) work against ToolPDF; the Docker stack runs with ToolPDF in shared-folder mode.
 - License is MIT; `NOTICE.md` explains ToolPDF (AGPL-3.0) as a separate program. Docs must not describe this repository as derived from another IngestLens repository.
-- Docs describe the ToolPDF structure. The Docker bundle with ToolPDF installed and processed documents from the bundle alone (WSL Docker, 2026-10-09); the Singularity bundle and the offline server are not tested yet.
-- First commit pushed to `https://github.com/kisubkim/IngestLens-v2` (`origin/main`, public, MIT). Next: test the Singularity bundle and the bundle on the offline server (`docs/HANDOFF.md` §6).
+- Docs describe the ToolPDF structure. Verified on this PC (2026-10-09): the Docker bundle (WSL Docker), the `--singularity` bundle (`singularity.sh start` in an Apptainer container, model server on CPU), and the Windows path with Windows Ollama 0.40.1 (`docs/WINDOWS.md` §3). Not yet: the offline server and Singularity `--nv`.
+- Pushed to `https://github.com/kisubkim/IngestLens-v2` (`origin/main`, public, MIT). Next: the bundle on the offline server (`docs/HANDOFF.md` §6).
+- `tests/fixtures/sample.pdf` page 5 is a blank grey "scan": a real VLM returns an empty answer there (`vlm_error`, expected). Check real OCR with `evals/samples/ko_scan_kostat.pdf`.

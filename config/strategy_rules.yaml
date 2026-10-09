@@ -44,8 +44,14 @@ strategy:
   fallback: pymupdf_text
   heading_size_ratio: 1.15      # span size >= body size * ratio counts as heading
   section_min_page_ratio: 0.15  # pages with headings / total pages to choose section chunking
-  target_tokens: 512
-  overlap_tokens: 64
+  target_tokens: 512            # chunk budget in embedding-model tokens (capped at the model's max_tokens - 16)
+  overlap_tokens: 64            # tail of a full chunk repeated at the start of the next one (capped at target/4)
+  # Chunks under min_tokens are merged into the next (else previous) chunk of the same section, up to
+  # target + min_tokens. 0 turns it off. Headings, one-row register tables and one-line notes otherwise end up
+  # alone and lose their context in search (2026-10-09: LIS3DH "WHO_AM_I (0Fh)" and its value table were
+  # separate chunks). Capped at target/2. Measured on four sensor datasheets: 64 already joins those, 128 leaves
+  # few short chunks; larger values change little (docs/HANDOFF.md 7).
+  min_tokens: 128
   dominant_ratio: 0.6           # label share needed to call a document "<label>-dominant"
 
 parse:

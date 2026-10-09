@@ -100,11 +100,11 @@ D:\work\
    ollama pull bge-m3           # 임베딩
    ```
    GPU 메모리가 8GB보다 작으면 `qwen2.5vl:3b`를 쓴다. 다만 3b는 비상업(연구·평가) 라이선스다(`NOTICE.md` 5절).
-3. Ollama 설정을 맞춘다. **Windows 설정 → 시스템 → 정보 → 고급 시스템 설정 → 환경 변수**에서 사용자 변수로 추가하고 Ollama를 다시 시작한다(트레이 아이콘 → Quit 후 다시 실행).
+3. (선택) Ollama 설정. Ollama 0.40은 기본값으로도 동작한다. 이 PC(GPU 16GB)에서는 아무것도 바꾸지 않은 상태로 VLM 문맥 길이가 16384였고, VLM과 임베딩이 함께 GPU에 올라갔다(`ollama ps`로 확인). 긴 표에서 답이 잘리거나 모델이 번갈아 내려갔다 올라가면 다음을 정한다. **Windows 설정 → 시스템 → 정보 → 고급 시스템 설정 → 환경 변수**에서 사용자 변수로 추가하고 Ollama를 다시 시작한다(트레이 아이콘 → Quit 후 다시 실행).
 
    | 변수 | 값 | 이유 |
    |---|---|---|
-   | `OLLAMA_CONTEXT_LENGTH` | `12288` | 쪽 이미지와 긴 답이 잘리지 않게 |
+   | `OLLAMA_CONTEXT_LENGTH` | `12288` 이상 | 쪽 이미지와 긴 답이 잘리지 않게(`ollama ps`의 CONTEXT가 이보다 작을 때) |
    | `OLLAMA_NUM_PARALLEL` | `2` | 설정 파일의 `max_concurrency: 2`와 맞춘다 |
    | `OLLAMA_MAX_LOADED_MODELS` | `2` | VLM과 임베딩을 함께 올려 둔다 |
 
@@ -119,9 +119,12 @@ D:\work\
 
 임베딩 모델을 바꾸거나 처음 연결했으면 **이미 처리한 문서를 다시 실행**해야 새 모델로 검색된다.
 
+**첫 문서는 느리다.** 받은 모델을 처음 쓸 때 Ollama가 모델을 새 형식으로 바꾸면서, 그동안 같은 VLM이 GPU에 두 번 올라가기도 한다. 이 PC에서 첫 문서(6쪽)는 193초, 바로 다음 같은 문서는 12초였다. 이때 `ollama list`에 `qwen2.5vl:7b`가 두 줄, `llamacpp:<긴 ID>`가 한 줄 더 보이는데 Ollama가 만든 사본이다(디스크 약 6GB 더 씀).
+
 ### 3-2. 확인할 것
 
-- 스캔 쪽이 있는 문서를 올려 "파싱 리포트"에서 OCR 결과가 제목, 본문, 표로 나뉘는지 본다.
+- 스캔 쪽이 있는 문서를 올려 "파싱 리포트"에서 OCR 결과가 제목, 본문, 표로 나뉘는지 본다. 저장소의 `evals\samples\ko_scan_kostat.pdf`(한국어 스캔 3쪽)를 쓰면 된다. 이 PC에서는 84초 걸렸고, 표가 빽빽한 두 쪽은 답이 잘려 한도를 올려 다시 요청했다("근거"의 `vlm_truncated_retry`, 정상).
+- 글자가 전혀 없는 스캔 쪽은 VLM이 빈 답을 주고 PDF 텍스트로 대체된다("근거"의 `vlm_error`). 이것도 정상이다.
 - "근거" 탭의 `embedding model`이 `dev-hash`가 아니라 `bge-m3`인지 본다.
 - Ollama에는 토큰 수를 세는 `/tokenize`가 없어서 토큰 비율은 기본값 2.5를 쓴다. 결정 기록에 "default"로 나오는 것은 정상이다.
 
@@ -218,6 +221,34 @@ Windows에는 한글 글꼴이 이미 있어 따로 설치할 것이 없다. 이
 - 백신이나 사내 프록시 때문에 빌드가 인증서 오류로 실패하면 `docker\certs\README.md`를 따른다.
 - 자세한 설명은 `README.md`의 "로컬 PC에서 실제 모델로 실행 (Docker)".
 
+### 7-1. Open WebUI까지 함께: `start_webui_test.bat`
+
+IngestLens 스택과 **Open WebUI**(v0.11.3)를 함께 띄워, Open WebUI에 파일을 넣고 질문하는 흐름까지 시험한다. 준비는 7절과 같다.
+
+1. **`start_webui_test.bat`** 더블클릭.
+   - IngestLens 스택(앱, ToolPDF, Ollama, reranker)과 Open WebUI 컨테이너를 띄운다. **이미 떠 있는 것은 건너뛴다.**
+   - PDF 엔진, 임베딩, VLM, reranker, Open WebUI가 모두 응답할 때까지 기다린다(첫 실행은 모델을 받느라 오래 걸리고, 그 뒤로는 1분 안팎).
+   - 준비되면 두 화면을 연다: IngestLens http://localhost:8000, Open WebUI http://localhost:3000.
+2. 중지: **`stop_webui_test.bat`**. 받은 모델, IngestLens 문서(`data-docker\`), Open WebUI의 계정·대화·지식 베이스(Docker 볼륨 `owui-test-data`)는 남는다.
+
+Open WebUI는 이렇게 연결된다(`deploy/OPENWEBUI.md`와 같은 설정).
+
+| Open WebUI 기능 | 쓰는 것 |
+|---|---|
+| 파일 추가 시 문서 처리(External 문서 로더) | IngestLens 앱 `http://app:8000/api/openwebui` |
+| 임베딩 | 스택의 Ollama `bge-m3` |
+| reranker | 스택의 모델 서버 `BAAI/bge-reranker-v2-m3` |
+| 채팅 모델 (기본) | 스택의 Ollama `gemma4:e4b`(약 6.6GB, `docker-compose.yml`의 `CHAT_MODEL`). `qwen2.5vl:7b`는 OCR·그림 설명용 VLM이라 긴 문서를 정리하는 질문에는 빈 답을 내곤 했다 |
+
+- **로그인:** Open WebUI 컨테이너를 처음 만들고 처음 가입한 사람이 관리자가 된다. 이 PC의 시험용 관리자 계정은 `admin@example.com`이다.
+- **답변에 쪽 이미지:** 필터 함수(`deploy/openwebui_page_images.py`)를 설치하면 답변 아래에 근거 쪽 썸네일이 붙는다(`deploy/OPENWEBUI.md` 10절). 밸브 `INGESTLENS_URL`은 `http://127.0.0.1:8000`.
+- **시험 순서 예:** Open WebUI에서 작업 공간 → 지식 → 새 지식 베이스에 PDF 추가 → IngestLens 화면의 문서 목록에 나타나고 "성공"이 되는지 → 채팅에서 `#`으로 그 지식 베이스를 골라 질문 → 답변의 출처 쪽 번호와 썸네일 확인.
+- 채팅 모델을 바꾸려면 `docker-compose.yml`의 `CHAT_MODEL`과 `OWUI_CHAT_MODEL`(기본 `gemma4:e4b`)을 함께 바꾸고 WSL에서 `bash scripts/webui_test.sh recreate`로 Open WebUI 컨테이너만 다시 만든다(계정·대화·지식 베이스는 남는다). 채팅 화면의 모델 선택에서 그때그때 골라도 된다.
+- 썸네일은 답변 내용과 맞는 쪽만 보인다(필터 0.4.0, `deploy/OPENWEBUI.md` 10-3).
+- 다른 Open WebUI 컨테이너 이름, 데이터 볼륨, 포트를 쓰려면 `OWUI_NAME`, `OWUI_VOLUME`, `OWUI_PORT`(기본 `owui-test`, `owui-test-data`, `3000`)를 정한다. 실제 동작은 `scripts\webui_test.sh`에 있다(리눅스에서는 `bash scripts/webui_test.sh up|status|recreate|down`).
+- 검색 설정을 바꿔 시험하려면 `OWUI_TOP_K`(질문마다 가져올 청크 수, 기본 5), `OWUI_BM25_WEIGHT`(키워드 비중, 기본 0.5)를 정하고 WSL에서 `env OWUI_TOP_K=10 bash scripts/webui_test.sh recreate`. 권장값과 근거는 `deploy/OPENWEBUI.md` 4-4. 청크 크기·겹침·최소 크기는 IngestLens의 `config\strategy_rules.yaml`에서 정한다(바꾸면 문서를 다시 처리하고 Open WebUI에 다시 넣는다).
+- `start_test.bat`(7절)과 같은 스택을 쓰므로 둘 중 하나만 쓰면 된다. Windows용 Ollama가 켜져 있으면 GPU를 나눠 쓰니, 느리면 트레이에서 종료한다.
+
 ## 8. 업데이트
 
 ```powershell
@@ -239,14 +270,16 @@ cd D:\work\IngestLens-v2;  git pull
 | 브라우저에 화면 대신 `{"detail":"Not Found"}` | 화면이 빌드되지 않았다. Node.js를 설치하고 `setup_local.bat`을 다시 실행한다 |
 | 임베딩·VLM이 "오류(연결할 수 없습니다)" | Ollama가 꺼져 있다. 시작 메뉴에서 Ollama를 실행한다 |
 | 임베딩·VLM이 "주의(모델이 없습니다)" | `ollama pull <모델>`을 하거나 설정 파일의 `model` 이름을 `ollama list`의 이름과 맞춘다 |
-| 처리가 아주 느림 | VLM 한 번에 수 초~수십 초가 걸리는 것은 정상이다(GPU에 따라 다름). 작업 관리자에서 GPU 사용을 확인한다. 모델 주소에 `localhost`를 쓰면 요청마다 약 2초가 더 걸리니 `127.0.0.1`로 쓴다 |
+| 처리가 아주 느림 | 모델을 받은 뒤 첫 문서는 Ollama가 모델 형식을 바꾸느라 느리다(3-1). 그 뒤에도 VLM 한 번에 수 초~수십 초가 걸리는 것은 정상이다(GPU에 따라 다름). 작업 관리자에서 GPU 사용을 확인한다. 모델 주소에 `localhost`를 쓰면 요청마다 약 2초가 더 걸리니 `127.0.0.1`로 쓴다 |
 | 그림 설명이 영어로 나옴 | 7b 모델에서 알려진 현상이다(`docs/HANDOFF.md` 6절) |
 | 창을 닫았더니 꺼짐 | 정상이다. 두 창이 서버다. 다시 `start_local.bat` |
 
 ## 10. 이 문서의 확인 범위 (2026-10-09, 개발 PC)
 
-- 확인함: `setup_local.bat`(가상환경, 패키지, 화면 빌드), `start_local.bat`(두 서버 시작, 포트 충돌 검사), `stop_local.bat`. 모델 없이 PDF 처리. Ollama의 OpenAI 호환 API(Docker의 Ollama, `qwen2.5vl:7b`, `bge-m3`)와 모델 서버 reranker에 연결해 VLM OCR·그림 설명·hybrid+rerank 검색까지.
-- 확인 못 함: Windows용 Ollama 자체로의 연결(`config/models.windows.yaml`은 같은 API에 주소만 다르다), 3-3의 모델 서버를 Windows Python에서 직접 실행, LibreOffice(6절), 다른 PC에서 접속(4절).
+- 확인함: `setup_local.bat`(가상환경, 패키지, 화면 빌드), `start_local.bat`(두 서버 시작, 포트 충돌 검사), `stop_local.bat`. 모델 없이 PDF 처리.
+- 확인함, 3절 순서 그대로: Windows용 Ollama 0.40.1에 `qwen2.5vl:7b`, `bge-m3`를 받고 `.env`에 `RAG_MODELS_FILE=config/models.windows.yaml` 한 줄. Ollama 환경 변수는 바꾸지 않음. 상태 화면 임베딩·VLM 정상, `sample.pdf`(그림 설명, 차트 재분류) 처리, 한국어 실제 스캔 3쪽 OCR(청크 12개, 표 포함).
+- 확인함: Docker의 Ollama와 모델 서버 reranker로 hybrid+rerank 검색.
+- 확인 못 함: 3-3의 모델 서버를 Windows Python에서 직접 실행, LibreOffice(6절), 다른 PC에서 접속(4절).
 
 ## 11. 스크립트 없이 직접 실행 (개발자용)
 

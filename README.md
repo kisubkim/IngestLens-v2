@@ -17,6 +17,7 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 | Windows PC, 모델까지 Docker로 | `docs/WINDOWS.md` 7절 | WSL2의 Docker Engine으로 `start_test.bat` |
 | 인터넷 없는 리눅스 서버 | **`deploy/README.md`** | 배포 묶음 파일 하나로 `./install.sh`(Docker) 또는 `./singularity.sh start` |
 | Linux·macOS 개발 PC | 아래 "실행 (개발)" | 두 저장소를 받아 venv로 실행 |
+| Windows PC에서 Open WebUI까지 시험 | `docs/WINDOWS.md` 7-1절 | `start_webui_test.bat`: IngestLens 스택 + Open WebUI, 이미 떠 있으면 건너뜀 |
 | Open WebUI 연동 | `deploy/OPENWEBUI.md` | 문서 로더, 쪽 이미지 필터 |
 
 ## 문서

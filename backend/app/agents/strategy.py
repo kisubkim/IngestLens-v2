@@ -84,9 +84,10 @@ async def strategy(state: PipelineState) -> dict:
     emb_max = models_cfg()["embedding"]["max_tokens"]
     target = min(cfg["target_tokens"], emb_max - 16)
     overlap = min(cfg["overlap_tokens"], target // 4)
+    min_tokens = min(cfg.get("min_tokens", 0), target // 2)
     cpt = await _calibrate_chars_per_token(run_id, state["pdf_path"])
     record_decision(
-        run_id, STEP, "chunking", f"{strat} (target {target} tokens, overlap {overlap})",
+        run_id, STEP, "chunking", f"{strat} (target {target} tokens, overlap {overlap}, min {min_tokens})",
         rule_id=rule,
         inputs={"format": fmt, "body_font_size": body, "heading_min_size": heading_min, "heading_page_ratio": heading_ratio,
                 "section_min_page_ratio": cfg["section_min_page_ratio"], "embedding_max_tokens": emb_max},
@@ -97,7 +98,8 @@ async def strategy(state: PipelineState) -> dict:
         "parsers": mapping,
         "parser_usage": dict(used),
         "heading_min_size": heading_min,
-        "chunking": {"strategy": strat, "target_tokens": target, "overlap_tokens": overlap, "chars_per_token": cpt},
+        "chunking": {"strategy": strat, "target_tokens": target, "overlap_tokens": overlap, "min_tokens": min_tokens,
+                     "chars_per_token": cpt},
     }
     update_summary(run_id, "plan", plan)
     return {"plan": plan}

@@ -3,9 +3,16 @@
 Elements are split into units no longer than the chunk budget, then packed greedily.
 Structural boundaries (new section, new page in page mode, tables and figures) close the
 current chunk, so every chunk keeps an exact list of source elements for bbox overlays.
+
+Those boundaries leave small chunks behind: a heading alone, a one-row register table, a one-line
+note. With `min_tokens` a second pass merges a chunk below that size into its neighbours of the same
+section (and page, in page mode), as long as the result stays within the budget plus `min_tokens`.
+Merged chunks keep every page and bbox of their parts, and text a part carried over as overlap from
+the previous chunk is not repeated.
 """
 
 import math
+import re
 
 # Default mixed Korean/English ratio. The strategy agent replaces it per run with a ratio measured
 # by the embedding model's tokenizer (vLLM /tokenize) when that endpoint is available.
@@ -65,46 +72,112 @@ def split_table(md: str, max_chars: int) -> list[str]:
     return out
 
 
+_NUMBER_ONLY = re.compile(r"^(\d+(\.\d+)*\.?|[A-Z]\.|[IVX]+\.?|제\s*\d+\s*[장절조])$")
+
+
+def section_name(title: str) -> str:
+    """The section a title opens. Datasheets often extract a numbered heading as two lines ("8.6" then
+    "WHO_AM_I (0Fh)"); a first line that is only a number keeps the next line, or every chunk of the section
+    would be prefixed with just "8.6"."""
+    lines = [ln.strip() for ln in title.splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    name = lines[0]
+    if len(lines) > 1 and _NUMBER_ONLY.match(name):
+        name = f"{name} {lines[1]}"
+    return name[:200]
+
+
 def _size(units: list[tuple[dict, str]]) -> int:
     return sum(len(u) for _, u in units)
 
 
+def _build(units: list[tuple[dict, str]], sec: str | None, chars_per_token: float, carried: int = 0) -> dict | None:
+    """A chunk from its units. `carried`: how many leading units are overlap repeated from the previous chunk."""
+    text = "\n".join(u for _, u in units).strip()
+    if not text:
+        return None
+    seen, bboxes = set(), []
+    for el, _ in units:
+        key = (el["page"], tuple(el["bbox"]))
+        if key not in seen:
+            seen.add(key)
+            bboxes.append({"page": el["page"], "bbox": el["bbox"]})
+    # A title extracted as "8.6\nWHO_AM_I" opens section "8.6 WHO_AM_I": compare with whitespace collapsed.
+    body = text if not sec or " ".join(text.split()).startswith(sec) else f"{sec}\n{text}"
+    return {
+        "text": body,
+        "tokens": est_tokens(body, chars_per_token),
+        "pages": sorted({el["page"] for el, _ in units}),
+        "bboxes": bboxes,
+        "section": sec,
+        "element_types": sorted({el["type"] for el, _ in units}),
+        "_units": units,
+        "_carried": carried,
+    }
+
+
+def merge_short(chunks: list[dict], strategy: str, min_tokens: int, max_tokens: int,
+                chars_per_token: float = CHARS_PER_TOKEN) -> list[dict]:
+    """Merge chunks under `min_tokens` into a neighbour of the same section (same page in page mode):
+    forward into the next chunk first, else backward into the previous one, never above `max_tokens`.
+    The same idea as Open WebUI's CHUNK_MIN_SIZE_TARGET, but done here so the merged chunk keeps the
+    pages and boxes of all its parts (Open WebUI keeps only the first part's metadata)."""
+    if min_tokens <= 0:
+        return chunks
+
+    def same_block(a: dict, b: dict) -> bool:
+        return a["section"] == b["section"] and (strategy != "page" or a["pages"][-1] == b["pages"][0])
+
+    def join(a: dict, b: dict) -> dict | None:
+        units = a["_units"] + b["_units"][b["_carried"]:]  # b's overlap tail repeats the end of a
+        merged = _build(units, a["section"], chars_per_token, a["_carried"])
+        return merged if merged and merged["tokens"] <= max_tokens else None
+
+    out: list[dict] = []
+    cur: dict | None = None
+    for nxt in chunks:
+        if cur is None:
+            cur = nxt
+            continue
+        if cur["tokens"] < min_tokens and same_block(cur, nxt) and (merged := join(cur, nxt)):
+            cur = merged
+            continue
+        if cur["tokens"] < min_tokens and out and same_block(out[-1], cur) and (merged := join(out[-1], cur)):
+            out[-1] = merged
+        else:
+            out.append(cur)
+        cur = nxt
+    if cur is not None:
+        if cur["tokens"] < min_tokens and out and same_block(out[-1], cur) and (merged := join(out[-1], cur)):
+            out[-1] = merged
+        else:
+            out.append(cur)
+    return out
+
+
 def chunk_elements(elements: list[dict], strategy: str, target_tokens: int, overlap_tokens: int,
-                   chars_per_token: float = CHARS_PER_TOKEN) -> list[dict]:
+                   chars_per_token: float = CHARS_PER_TOKEN, min_tokens: int = 0) -> list[dict]:
     """elements: dicts with page, type, bbox, content, in reading order.
-    strategy: "section" | "page" | "recursive".
+    strategy: "section" | "page" | "recursive". min_tokens > 0 merges smaller chunks (merge_short).
     Returns chunk dicts: text, tokens, pages, bboxes, section, element_types."""
     max_chars = int(target_tokens * chars_per_token)
     overlap_chars = int(overlap_tokens * chars_per_token)
     chunks: list[dict] = []
     cur: list[tuple[dict, str]] = []
+    carried = 0  # leading units of `cur` that are overlap from the previous chunk
     section: str | None = None
 
-    def emit(units: list[tuple[dict, str]], sec: str | None) -> None:
-        text = "\n".join(u for _, u in units).strip()
-        if not text:
-            return
-        seen, bboxes = set(), []
-        for el, _ in units:
-            key = (el["page"], tuple(el["bbox"]))
-            if key not in seen:
-                seen.add(key)
-                bboxes.append({"page": el["page"], "bbox": el["bbox"]})
-        body = text if not sec or text.startswith(sec) else f"{sec}\n{text}"
-        chunks.append({
-            "text": body,
-            "tokens": est_tokens(body, chars_per_token),
-            "pages": sorted({el["page"] for el, _ in units}),
-            "bboxes": bboxes,
-            "section": sec,
-            "element_types": sorted({el["type"] for el, _ in units}),
-        })
+    def emit(units: list[tuple[dict, str]], sec: str | None, n_carried: int = 0) -> None:
+        if (c := _build(units, sec, chars_per_token, n_carried)) is not None:
+            chunks.append(c)
 
     def close(carry: bool) -> None:
-        nonlocal cur
+        nonlocal cur, carried
         if not cur:
             return
-        emit(cur, section)
+        emit(cur, section, carried)
+        carried = 0
         if carry and overlap_chars:
             tail, size = [], 0
             for u in reversed(cur):
@@ -119,6 +192,7 @@ def chunk_elements(elements: list[dict], strategy: str, target_tokens: int, over
                 cut = cut[cut.find(" ") + 1:] if " " in cut else cut
                 tail = [(el, cut)] if cut.strip() else []
             cur = tail if len(tail) < len(cur) or tail[0][1] != cur[0][1] else []
+            carried = len(cur)
         else:
             cur = []
 
@@ -129,7 +203,7 @@ def chunk_elements(elements: list[dict], strategy: str, target_tokens: int, over
         if el["type"] == "title":
             if strategy == "section":
                 close(carry=False)
-            section = content.splitlines()[0][:200]
+            section = section_name(content)
         if el["type"] in ATOMIC:
             close(carry=False)
             for piece in (split_table if el["type"] == "table" else split_text)(content, max_chars):
@@ -141,9 +215,13 @@ def chunk_elements(elements: list[dict], strategy: str, target_tokens: int, over
             if cur and _size(cur) + len(piece) > max_chars:
                 close(carry=True)
                 if cur and _size(cur) + len(piece) > max_chars:
-                    cur = []  # overlap tail + piece would overflow and re-emit the tail alone
+                    cur, carried = [], 0  # overlap tail + piece would overflow and re-emit the tail alone
             cur.append((el, piece))
     close(carry=False)
+    if min_tokens > 0:
+        chunks = merge_short(chunks, strategy, min_tokens, target_tokens + min_tokens, chars_per_token)
+    for c in chunks:
+        del c["_units"], c["_carried"]
     return chunks
 
 

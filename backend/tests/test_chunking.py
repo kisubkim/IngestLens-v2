@@ -1,4 +1,4 @@
-from app.tools.chunking import chunk_elements, est_tokens, split_text
+from app.tools.chunking import chunk_elements, est_tokens, section_name, split_text
 
 
 def el(page, type_, content, y=0):
@@ -44,6 +44,57 @@ def test_recursive_packs_to_budget_with_overlap():
     # overlap: chunk i+1 starts with the tail of chunk i
     head = chunks[1]["text"].splitlines()[0]
     assert 0 < len(head) <= 50 and chunks[0]["text"].endswith(head)
+
+
+REGISTERS = [  # a datasheet register map (LIS3DH p29): a numbered heading extracted as two lines, a one-row bit table, a note
+    el(28, "title", "8.6\nWHO_AM_I (0Fh)", 10), el(28, "table", "**Table 21. WHO_AM_I register**\n|0|0|1|1|0|0|1|1|\n|---|---|", 30),
+    el(28, "text", "Device identification register.", 50),
+    el(28, "title", "8.7\nTEMP_CFG_REG (1Fh)", 70), el(28, "table", "**Table 22. TEMP_CFG_REG register**\n|ADC_PD|TEMP_EN|0|0|\n|---|---|", 90),
+]
+
+
+def test_short_chunks_stay_apart_without_min_tokens():
+    chunks = chunk_elements(REGISTERS, "section", 512, 64)
+    assert len(chunks) == 5
+    # The section prefix keeps the register name next to its bits even when they are separate chunks.
+    assert chunks[1]["section"] == "8.6 WHO_AM_I (0Fh)" and chunks[1]["text"].startswith("8.6 WHO_AM_I (0Fh)\n**Table 21")
+
+
+def test_section_name_joins_a_number_only_first_line():
+    assert section_name("8.6\nWHO_AM_I (0Fh)") == "8.6 WHO_AM_I (0Fh)"
+    assert section_name("3.2.1.\nPower-up") == "3.2.1. Power-up"
+    assert section_name("Introduction\nmore") == "Introduction"
+    assert section_name("제 3 장\n개요") == "제 3 장 개요"
+
+
+def test_min_tokens_merges_within_a_section_and_keeps_all_boxes():
+    chunks = chunk_elements(REGISTERS, "section", 512, 64, min_tokens=128)
+    assert [c["section"] for c in chunks] == ["8.6 WHO_AM_I (0Fh)", "8.7 TEMP_CFG_REG (1Fh)"]  # never across sections
+    who = chunks[0]
+    assert "WHO_AM_I (0Fh)" in who["text"] and "|0|0|1|1|0|0|1|1|" in who["text"] and "Device identification" in who["text"]
+    # The chunk starts with the two-line title itself, so the section name is not prefixed again.
+    assert who["text"].startswith("8.6\nWHO_AM_I (0Fh)\n") and who["text"].count("WHO_AM_I (0Fh)") == 1
+    assert [b["bbox"][1] for b in who["bboxes"]] == [10, 30, 50] and who["pages"] == [28]
+    assert who["element_types"] == ["table", "text", "title"]
+
+
+def test_min_tokens_does_not_merge_across_pages_in_page_mode():
+    els = [el(0, "text", "slide one"), el(1, "text", "slide two")]
+    assert len(chunk_elements(els, "page", 512, 0, min_tokens=128)) == 2
+    assert len(chunk_elements(els, "recursive", 512, 0, min_tokens=128)) == 1
+
+
+def test_merge_respects_the_budget_and_drops_repeated_overlap():
+    """A short tail chunk merged back into the full chunk before it must not repeat the overlap it carried."""
+    els = [el(0, "text", f"s{i:03d}", i) for i in range(52)]
+    plain = chunk_elements(els, "recursive", target_tokens=40, overlap_tokens=4)
+    merged = chunk_elements(els, "recursive", target_tokens=40, overlap_tokens=4, min_tokens=20)
+    assert plain[-1]["tokens"] < 20 and len(merged) == len(plain) - 1
+    assert all(c["tokens"] <= 40 + 20 for c in merged)
+    lines = [ln for c in merged for ln in c["text"].splitlines()]
+    tail = merged[-1]["text"].splitlines()
+    assert len(tail) == len(set(tail))  # no line twice inside the merged chunk
+    assert {f"s{i:03d}" for i in range(52)} <= set(lines)
 
 
 def test_overlap_carries_whole_elements_when_they_fit():

@@ -30,8 +30,9 @@
 
 | 항목 | 검증 방법 | 실제 환경 검증 |
 |---|---|---|
-| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 61개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
-| PDF 엔진 ToolPDF | 테스트가 ToolPDF를 직접 띄움(`tests/conftest.py`), Docker 스택 | ToolPDF를 넣은 배포 묶음은 아직 오프라인 서버에서 시험하지 않음 |
+| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 70개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
+| PDF 엔진 ToolPDF | 테스트가 ToolPDF를 직접 띄움(`tests/conftest.py`), Docker 스택, Windows `start_local.bat` | ToolPDF를 넣은 묶음을 이 PC에서 Docker(`install.sh`)와 Apptainer(`singularity.sh start`)로 확인(10-09). 실제 오프라인 서버에서는 아직 |
+| Windows PC (Docker 없이) | `setup_local.bat`, `start_local.bat`, `stop_local.bat` | Windows용 Ollama 0.40.1(`qwen2.5vl:7b`, `bge-m3`)로 `docs/WINDOWS.md` 3절 순서 그대로 확인. 한국어 실제 스캔 OCR까지(10-09) |
 | VLM (OCR, 그림, 표, 분류) | 코드 mock, HTTP mock, **Ollama `qwen2.5vl:7b`** (Docker, 2026-10-04) | 실제 VL 모델로 응답 형식 확인: `TYPE:` 첫 줄, OCR 제목 분리, 차트 표, 분류 JSON 모두 동작. 합성 세트에서 7b 92%·3b 86%, 실제 공개 문서 10종에서 7b 92%·3b 51%(7절). **vLLM과 큰 모델로는 아직 안 함** |
 | 임베딩 | dev-hash, mock HTTP, **Ollama `bge-m3`** | 합성 세트로 측정(7절). vLLM으로는 안 함 |
 | 임베딩 + reranker 모델 서버 | **`docker/model-server/server.py`** (transformers, 프로세스 하나에 bge-m3와 bge-reranker-v2-m3) | 이 PC의 GPU에서 확인: GPU 프로세스 1개, Ollama bge-m3와 벡터 일치(코사인 1.0), 합성 세트 측정(7절). 운영 GPU(Exclusive_Process 모드)에서는 아직 |
@@ -40,7 +41,7 @@
 | Office 자체 렌더링 (ToolPDF) | 생성한 docx/pptx/xlsx | 실제 문서로 검증 안 함 |
 | 150MB 대용량 | `bench_large.py --pdf` | ToolPDF 구조로는 아직 측정 안 함 |
 | Linux(운영 서버) | Docker 이미지(python:3.12-slim), Apptainer 1.4.5 컨테이너 | Linux 컨테이너에서 파이프라인 전체 동작 확인. 오프라인 서버에서 sif로 앱 실행됨(사용자 시험) |
-| 오프라인 배포 묶음 | `build_offline_bundle.py` | 이미지를 지우고 묶음만으로 설치·실행, `--network none` 컨테이너에서 처리·검색, Singularity `.sif`로 처리·검색까지 확인(ToolPDF를 넣기 전, 10-05~06). ToolPDF를 넣은 묶음은 10-09에 Docker로 설치·처리 확인(7절). Singularity `--nv`(GPU)는 Windows에서 시험 불가 |
+| 오프라인 배포 묶음 | `build_offline_bundle.py` | 이미지를 지우고 묶음만으로 설치·실행, `--network none` 컨테이너에서 처리·검색, Singularity `.sif`로 처리·검색까지 확인(ToolPDF를 넣기 전, 10-05~06). ToolPDF를 넣은 묶음은 10-09에 Docker로, `--singularity` 묶음은 Apptainer 1.4.5 컨테이너에서 `.sif` 3개(ToolPDF, 모델 서버 CPU, 앱)로 처리·검색·rerank까지 확인(7절). Singularity `--nv`(GPU)는 Windows에서 시험 불가 |
 | Open WebUI 연동 | Open WebUI v0.11.3 컨테이너 | 파일 추가 → IngestLens 처리 → 지식 베이스 → LLM 답변과 출처(쪽 번호)까지 확인(`deploy/OPENWEBUI.md`). 쪽 이미지 필터로 답변의 썸네일 줄과 출처 팝업 이미지까지 가로·세로 문서로 화면에서 확인(10절) |
 
 ---
@@ -56,13 +57,14 @@ IngestLens-v2/
     tools/      toolpdf(PDF 엔진 클라이언트, 유일한 연결 지점), pdf(쪽 분류 규칙), figures, office(형식 판별), vlm, vlm_output, vlm_checks, embedding, reranker, lexical, chunking, vectorstore, purge
     models.py   Document, Run, Event, Decision, PageProfile, Element, Chunk
     events.py   emit_event / record_decision + SSE fan-out
-  backend/tests/   pytest 61개 (conftest가 ToolPDF를 띄움, fixtures/sample.pdf, minipdf.py로 만드는 작은 PDF, office_fixtures)
+  backend/tests/   pytest 70개 (conftest가 ToolPDF를 띄움, test_openwebui_filter는 Open WebUI 쪽 이미지 필터, fixtures/sample.pdf, minipdf.py로 만드는 작은 PDF, office_fixtures)
   config/     models.yaml (모델 endpoint 템플릿), models.docker.yaml (Docker 스택용), models.docker-host.yaml (호스트에서 Docker 스택의 모델 쓰기), models.windows.yaml (Windows용 Ollama), strategy_rules.yaml (모든 규칙과 파라미터)
   docker/     app.Dockerfile, model-server/ (임베딩+rerank 모델 서버: server.py, 개발용 Dockerfile, 운영용 release.Dockerfile), certs/ (추가 신뢰 CA)
   docker-compose.yml   로컬 검증 스택: app + ToolPDF(../ToolPDF에서 빌드) + Ollama + reranker(모델 서버, CPU)
   deploy/     오프라인 서버용: docker-compose.yml(app + ToolPDF), models.yaml, install.sh, model-server.sh, singularity.sh, README.md(설치), OPENWEBUI.md(연동), openwebui_page_images.py(Open WebUI 쪽 이미지 필터)
   setup_local.bat, start_local.bat, stop_local.bat   Windows PC에서 Docker 없이 준비·실행·중지 (ToolPDF와 앱을 창 하나씩, docs/WINDOWS.md)
   start_test.bat/.sh, stop_test.bat/.sh   로컬 Docker 스택 시작·중지 (Windows는 WSL의 Docker Engine, 3-1)
+  start_webui_test.bat, stop_webui_test.bat   위 스택 + Open WebUI 시험 컨테이너를 함께 (scripts/webui_test.sh, docs/WINDOWS.md 7-1)
   PROGRESS.md 날짜별 진행 기록
   frontend/   React + Vite. build 결과물 dist/는 FastAPI가 / 경로로 서빙
   scripts/    mock_vllm, bench_large, eval_profile, eval_retrieval, eval_vlm, build_offline_bundle, _inproc(평가 스크립트 공용)
@@ -90,8 +92,8 @@ git clone https://github.com/kisubkim/ToolPDF ../ToolPDF
 python -m venv .venv
 .venv/Scripts/pip install -r backend/requirements-dev.txt     # Linux: .venv/bin/pip
 cd frontend && npm install && npm run build && cd ..
-cd backend && ../.venv/Scripts/python -m pytest -q             # 61 passed 확인 (공유 폴더 방식)
-RAG_TOOLPDF_TRANSFER=http ../.venv/Scripts/python -m pytest -q # 61 passed 확인 (HTTP 방식)
+cd backend && ../.venv/Scripts/python -m pytest -q             # 70 passed 확인 (공유 폴더 방식)
+RAG_TOOLPDF_TRANSFER=http ../.venv/Scripts/python -m pytest -q # 70 passed 확인 (HTTP 방식)
 ../ToolPDF/.venv/Scripts/python -m uvicorn --app-dir ../ToolPDF toolpdf.server:app --port 8095 &   # 서버를 띄울 때는 ToolPDF 먼저
 ../.venv/Scripts/python -m uvicorn app.main:app --port 8000
 ```
@@ -272,7 +274,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [ ] **인증과 접근 제어**가 없다. 설정 변경, 삭제, 수집 API만 `RAG_API_KEY`로 막혀 있고, 화면 조회·업로드·검색은 열려 있다. 내부 네트워크에서만 쓰더라도 접속할 수 있는 누구나 업로드, 조회, 검색할 수 있다. 배포 전에 최소한 SSO나 reverse proxy 인증을 붙인다.
 - [x] Open WebUI 연동을 실제 Open WebUI(v0.11.3)로 검증했다(2026-10-07, `deploy/OPENWEBUI.md`). 그 과정에서 출처 쪽 번호가 1씩 크던 문제(`page` 0부터로 수정)와, Open WebUI가 청크를 다시 자르는 문제(설정으로 해결)를 찾았다. 남은 확인: 큰 문서에서 reverse proxy timeout. Open WebUI 로더 자체는 시간 제한 없이 기다리고, IngestLens는 `RAG_INGEST_WAIT_SECONDS`(기본 3600초)가 지나면 504를 준다.
 - [ ] LibreOffice를 쓴다면 실제 변환을 검증한다(ToolPDF를 `WITH_LIBREOFFICE=1`로 빌드). 한글 폰트, 슬라이드 1장 = 1페이지인지(노트 페이지 출력 옵션이 꺼져 있는지) 확인한다.
-- [ ] ToolPDF를 넣은 배포 묶음을 오프라인 서버에서 시험한다. Docker(`install.sh`)와 Singularity(`singularity.sh start`) 모두, `/#status`의 PDF 엔진이 정상인지, 문서 처리가 끝까지 되는지 본다.
+- [~] ToolPDF를 넣은 배포 묶음을 오프라인 서버에서 시험한다. 이 PC에서는 Docker(`install.sh`)와 Apptainer 컨테이너의 `singularity.sh start`(CPU)로 확인했다(10-09). 서버에서는 `/#status`의 PDF 엔진이 정상인지, GPU(`--nv`)로 모델 서버가 뜨는지, 문서 처리가 끝까지 되는지 본다.
 
 **P1: 품질**
 - [ ] 실제 공개 문서 10종 평가(2026-10-04, `qwen2.5vl:7b`)에서 모델과 상관없이 실패한 항목. 파이프라인 과제다:
@@ -283,7 +285,10 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [ ] 그림 설명이 영어로 나온다(Ollama `qwen2.5vl:7b`, 3b도 흐름도에서 같음). prompt에는 이미 "이미지의 언어로 답하라"가 있다. 큰 모델로 `eval_vlm.py`를 돌려 보고도 영어면 prompt를 "한국어로" 쪽으로 바꾼다. 7b의 차트 추세 요약은 데이터와 맞지 않았다("증가 추세"라고 했지만 3월에 줄었다).
 - [ ] 제목 바로 뒤에 표나 그림이 오면 제목만 있는 청크(`2. 비상 대응 절차`)가 따로 생긴다. 짧은 청크 병합과 함께 처리한다.
 - [ ] 실제 문서로 평가 세트를 만들고 기준선을 측정한다.
-- [ ] 짧은 청크를 병합한다. 현재 섹션이 짧으면 `too_short` 청크가 많이 생긴다. 최소 크기에 못 미치면 같은 섹션 안의 다음 청크와 합치는 방식이다.
+- [x] 짧은 청크 병합(2026-10-09): `strategy.min_tokens`(기본 128), 같은 절 안에서 다음(안 되면 앞) 청크와 합친다. 근거 `chunk_merge`. 권장 조합과 측정은 `deploy/OPENWEBUI.md` 4-4, 7절.
+- [ ] 짧은 청크의 임베딩 검색이 약하다. 합친 LIS3DH WHO_AM_I 청크(54토큰)도 한국어 질문에 dense 20위(BM25 1위)라 Open WebUI가 TOP_K 10에서도 못 가져왔다. 후보: 청크 임베딩에 문서 제목·절 경로를 붙여 넣기(contextual chunk), 질문을 문서 언어로 바꿔 한 번 더 검색, 절 단위로 짧은 절끼리 합치기.
+- [ ] 절의 첫 청크만 검색되고 정답이 두 번째 청크에 있는 경우(MPU-6000 I2C 주소 "b110100X"). 후보: 검색된 청크의 같은 절 이웃 청크를 함께 넘기기(Open WebUI 쪽에서는 어려우므로 IngestLens 검색 API 쪽).
+- [ ] 로컬 Docker 스택의 reranker는 CPU라 합친(커진) 청크 20개 rerank가 60초를 넘겨 시간 초과(`models.docker.yaml` `reranker.timeout_s`). 운영은 GPU 모델 서버라 해당 없음. 로컬에서 후보를 늘려 잴 때는 timeout을 올린다.
 - [ ] 스캔 OCR 결과의 위치 정보: 지금은 모든 element가 페이지 전체 bbox를 갖는다. VLM grounding 출력이나 OCR 엔진 bbox로 개선한다.
 - [ ] Office 자체 렌더링(ToolPDF)의 누락 항목: docx 머리글/바닥글/각주/텍스트 상자, pptx SmartArt·도형 텍스트 일부. ToolPDF 저장소의 과제다.
 - [ ] 대용량 벤치마크(`bench_large.py --pdf`)를 ToolPDF 구조로 다시 재고 7절에 남긴다. 앱과 ToolPDF의 메모리를 따로 잰다.
@@ -310,6 +315,10 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 | 2026-10-04 | 합성 세트 검색 22문항, Ollama `bge-m3` + `qwen2.5vl:7b`, reranker `bge-reranker-v2-m3`(CPU). RTX 5070 Ti, Docker | dense hit@1 95%, hybrid 82% (paraphrase 50%), hybrid+rerank 100% | `evals/reports/retrieval_synthetic_ollama.md`. 실제 임베딩에서는 BM25가 paraphrase를 끌어내려 hybrid가 dense보다 낮다. 가중치 조정 후보 |
 | 2026-10-04 | 3페이지 PDF(텍스트, 스캔, 차트 그림), 같은 스택 | 전체 60s(모델 첫 로드 포함), 그림 설명 1회 8.0s, rerank 15개 1.6~2.2s(CPU) | manual.pdf 12p는 32s |
 | 2026-10-07 | Open WebUI v0.11.3 + IngestLens 개발 스택, 국가데이터처 보도자료 5쪽 | Open WebUI 기본 청크 설정(1000자, 겹침 100, Markdown 헤더 분할)에서 IngestLens 청크 49개 → Open WebUI 조각 58개. `CHUNK_SIZE=8000`, 겹침 0, 분할 끔이면 26 → 26(Docling 논문) | 큰 표 9개가 잘렸다. `deploy/OPENWEBUI.md` 4-3 |
+| 2026-10-09 | 짧은 청크 합치기 `min_tokens` 0 대 128. 합성 세트 검색 22문항(`eval_retrieval.py`, Docker의 Ollama bge-m3·CPU reranker), 센서 데이터시트 4종을 다시 처리해 Open WebUI 새 지식 베이스로 질문 9개(`gemma4:e4b`) | 합성: hybrid+rerank hit@1 95% → 100%, hybrid 86 → 91%, dense만 95 → 86%, 청크 38 → 25. 데이터시트 청크 1,314 → 869. 질문 9개: 합치기 전 TOP_K 5 7개, 합친 뒤 TOP_K 5 6개, TOP_K 10 7개, TOP_K 10 + BM25 비중 0.8 어려운 3개 중 0개 | 남은 오답은 검색 문제(짧은 청크의 dense 순위, 절 두 번째 청크). 6절 백로그. 표본이 작아 한두 개 차이는 우연일 수 있음. `deploy/OPENWEBUI.md` 4-4 |
+| 2026-10-09 | 공개 센서 데이터시트 4종(SHT3x 22쪽, LIS3DH 42쪽, MPU-6000 57쪽, BME280 60쪽, 합 181쪽)을 Open WebUI 지식 베이스에 추가(문서 로더 → IngestLens Docker 스택, `qwen2.5vl:7b`, bge-m3), 질문은 Open WebUI `gemma4:e4b` | 처리 283·236·218·429초(합 약 19분), 경고 0. 쪽 분류: 표 49, 다이어그램 31, 텍스트 90. 청크 267·336·315·396개. VLM 표 재추출(`table_empty_cells`) 89회, 잘림 재시도 29회. 질문 9개 중 7개 정답, 썸네일은 답한 경우 모두 정답 쪽(필터 0.4.0) | 오답 2개는 청크 문제: 레지스터 제목·값 표가 다른 청크(LIS3DH WHO_AM_I), 정답 문장이 큰 청크에 묻혀 검색 8위(MPU-6000 I2C 주소). 6절 백로그. 문서는 저장소에 넣지 않음 |
+| 2026-10-09 | 배포 묶음 `--singularity`(ToolPDF 0.1.0 포함), Apptainer 1.4.5 컨테이너(privileged)에서 `singularity.sh start`, 모델 서버 CPU(bge-m3, bge-reranker-v2-m3), VLM 끔 | 묶음 4,409MB(앱 sif 105MB, 모델 서버 sif 3,928MB, ToolPDF 폴더 270MB, 앱 Docker 이미지 105MB). 상태: PDF 엔진(공유 폴더)·임베딩·reranker 정상. sample.pdf 6쪽, pptx 4장 처리, 토큰 비율 2.521(`/tokenize` 측정), hybrid+rerank 검색. `stop`으로 세 프로세스 모두 중지 | 묶음의 `singularity.env`에 ToolPDF 이미지 이름과 임의 키가 채워져 있었음. `--nv`(GPU)는 시험 불가 |
+| 2026-10-09 | Windows `start_local.bat` + Windows용 Ollama 0.40.1(`qwen2.5vl:7b`, `bge-m3`, 환경 변수 기본값), RTX 5070 Ti | sample.pdf 6쪽: 첫 실행 193초(모델 형식 변환 중), 다음 12초. `ko_scan_kostat.pdf` 3쪽 OCR 84초, 청크 12개, 잘림 재시도 2회 | `ollama ps`: VLM 문맥 16384, VLM과 임베딩 함께 GPU |
 | 2026-10-09 | 배포 묶음(Docker, ToolPDF 0.1.0 포함), WSL Docker Engine에 묶음만으로 설치(포트 8100), 모델 주소 비움 | 묶음 376MB(앱 이미지 105MB, ToolPDF 폴더 270MB). `install.sh`로 두 이미지 불러오기와 시작, 상태의 PDF 엔진 정상(공유 폴더). sample.pdf 6쪽과 pptx 4장 처리 성공 | pptx는 ToolPDF 자체 렌더링으로 데이터 폴더의 `converted/`에 PDF를 씀. Singularity 묶음은 아직 시험 안 함 |
 | 2026-10-06 | 배포 묶음 `--singularity`(앱 + 모델 서버 `.sif`) | 묶음 4.2GB(앱 sif 145MB, 모델 서버 sif 3.9GB, Docker 앱 이미지 149MB). 모델 서버 이미지 GPU: rerank 15개 0.054초, 임베딩 210개 0.8초 | CUDA 12.8 torch. Apptainer 안의 CPU 실행은 rerank 15개 약 8초 |
 | 2026-10-05 | 모델 서버(bge-m3 + bge-reranker-v2-m3, 프로세스 1개, float16), RTX 5070 Ti | 임베딩 210개(약 330토큰씩) 0.75초, rerank 15개 0.06초, GPU 메모리 약 2.3GB. 합성 세트 dense hit@1 95%(Ollama와 같음) | `/tokenize`로 토큰 비율을 실제로 재서 청크 경계가 조금 바뀜(manual.pdf 17 → 19청크). hybrid+rerank 95%(한 문항 2위) |
@@ -369,7 +378,10 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - **bat의 `if (...)` 블록 안 `echo`에 괄호를 쓰지 않는다**: `)`가 블록 끝으로 읽힌다. 블록 밖으로 빼거나 `^)`로 쓴다.
 - **`start "제목" cmd /k ...`로 띄운 창은 화면이 없는 환경에서 제목이 비어 있다**: 그래서 `stop_local.bat`은 창 제목이 아니라 실행 명령(`.venv`의 python으로 띄운 `uvicorn app.main:app`, `uvicorn toolpdf.server:app`)으로 찾아 부모 cmd째 `taskkill /t`로 끈다.
 - **경로 설정의 상대 경로는 저장소 폴더 기준이다**(`config.py` `_from_repo_root`): 예전에는 서버를 띄운 폴더(`backend/`) 기준이라 `.env`의 `RAG_MODELS_FILE=config/...`가 파일을 찾지 못했다.
-- **새 Ollama 이미지는 받은 모델을 새 형식으로 다시 받는다**: 예전 사본이 `llamacpp:<id>` 이름으로 남아 6GB가 두 벌이 됐다. `ollama list`로 보고 `ollama rm`으로 지운다.
+- **새 Ollama 이미지는 받은 모델을 새 형식으로 다시 받는다**: 예전 사본이 `llamacpp:<id>` 이름으로 남아 6GB가 두 벌이 됐다. `ollama list`로 보고 `ollama rm`으로 지운다. Windows용 Ollama 0.40.1에서도 같다: 막 받은 모델을 처음 쓸 때 바꾸면서 같은 VLM이 GPU에 두 번 올라가, 첫 문서(6쪽)가 193초, 다음은 12초였다.
+- **Open WebUI의 출처(sources)는 "답에 쓴 청크"가 아니라 "검색해 온 청크 전부"다**: 보통 5개이고 다른 주제나 낮은 점수의 청크도 섞인다. 쪽 이미지 필터 0.3.0은 이것을 순서대로 앞에서 3쪽 보여줘서 답과 상관없는 캡처가 나왔다(회사 시험에서 보고, 2026-10-09 재현). 0.4.0은 답변과 청크의 숫자·단어·한글 두 글자 조각 일치로 고른다(`tests/test_openwebui_filter.py`). 인용 번호 `[1]`은 청크가 아니라 문서 단위라 쓸 수 없다.
+- **compose 밖의 컨테이너를 스택 네트워크에 붙여 두면**(Open WebUI 시험 컨테이너): `docker compose down`이 네트워크를 지우고 `up`이 같은 이름으로 새로 만드는데, 꺼져 있던 그 컨테이너는 예전 네트워크 ID를 기억해 `docker start`가 `network ... not found`로 실패한다. 켜져 있으면 반대로 compose가 네트워크를 못 지운다. `scripts/webui_test.sh`는 내릴 때 먼저 떼고, 켤 때 끊었다가 시작한 뒤 다시 붙인다.
+- **`tests/fixtures/sample.pdf`의 5쪽("스캔")은 글자 없는 회색 이미지다**: 스캔으로 분류되게 만든 쪽이라 실제 VLM은 빈 답(`'#'`)을 주고 `vlm_error`로 텍스트 층에 대체된다. 정상이다. 2026-10-09에 이것을 Ollama 0.40의 이미지 인식 문제로 잘못 의심했다. 실제 OCR은 `evals/samples/ko_scan_kostat.pdf`로 본다.
 - **배포용 compose의 프로젝트 이름은 `ingestlens-server`다**: 개발용 `docker-compose.yml`(프로젝트 `ingestlens`)과 같은 이름이면 한쪽을 `up`/`down`할 때 다른 쪽 컨테이너와 네트워크를 바꾸거나 지운다. 실제로 시험 중에 개발용 앱 컨테이너가 교체됐다.
 - **빌드 PC의 추가 인증서(`docker/certs/*.crt`)는 이미지에 남지 않는다**: Dockerfile이 `RUN --mount=type=bind`로 패키지를 받는 동안만 쓴다. 그래서 개발용과 배포용 이미지를 따로 빌드하지 않는다.
 - **Docker에서 데이터 폴더(`RAG_DATA_DIR=/data`)는 잠겨 있는 것이 정상이다**: 컨테이너 안의 경로는 볼륨으로 정해진다. PC 쪽 폴더는 `.env`의 `INGESTLENS_DATA_DIR`로 바꾸고, 화면에는 `RAG_DATA_DIR_HINT` 문구가 나온다.
