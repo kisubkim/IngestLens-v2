@@ -358,6 +358,7 @@
 - **시험**: conformance 21개(`test_engine_conformance.py`, 두 엔진에 같은 시험, ToolPDF 답이 기준), 선택·전체 실행·암호 PDF API·패키지 독립·의존성 라이선스 10개(`test_engine_select.py`). 전체 114개가 공유 폴더, HTTP, `RAG_PDF_ENGINE=local` 세 설정에서 통과. `pinned` fixture로 시험마다 엔진을 고정.
 - **확인**: ToolPDF 없는 묶음을 WSL Docker에 `install.sh`로 설치해 sample.pdf, docx(한글 렌더 화면 확인), 암호 PDF 처리. `start_local.bat local`로 앱만 띄우고 `stop_local.bat`으로 중지.
 - **문서**: `NOTICE.md`(내장 엔진 라이브러리, PDFium에 든 라이브러리, FreeType FTL 고지, 묶음 두 형태), `docs/ENGINE_PLAN.md`(결정, 9절 결과), `docs/AGENTS.md`(엔진 선택, 암호 PDF), README, `deploy/README.md` 2-1절, `docs/WINDOWS.md` 2-6절, HANDOFF, CLAUDE.md.
+- **묶음 다시 만들기**: ToolPDF `docker/release.sh`로 `toolpdf-0.2.0` 배포 폴더(이미지 리비전 `ea72cd35c76f`), `build_offline_bundle.py --singularity --version 20261010`으로 `ingestlens-20261010-offline.tar`(4,505MB). WSL Docker에 `install.sh`로 설치해 상태 화면 "ToolPDF 0.2.0 · 옵션 지원", PDF·docx·암호 PDF 처리 확인. 첫 빌드는 torch 다운로드 시간 초과로 실패해 다시 실행했다.
 - 겪은 일: 묶음의 `models.yaml` 자리표시 VLM 주소를 그대로 두면 실행이 InvalidURL로 실패한다(설치 때 경고는 나옴). bash heredoc이 `\\`를 `\`로 바꿔 배치 파일을 고치는 스크립트가 멈췄다(HANDOFF 9절).
 
 ### 2-29. ToolPDF 0.2.0 엔진 옵션과 엔진 계획 (10-10)
@@ -368,7 +369,7 @@
 - 근거: 프로파일 단계에 `engine_options`(보낸 옵션과 엔진 버전) 또는 `engine_options_unsupported`. 상태 화면은 0.2.0 미만이면 "주의", 엔진 버전이 바뀌면 옵션 지원 여부를 다시 묻는다.
 - 확인: `tests/test_engine_options.py` 5개. 괘선 없는 표를 `lines`로는 못 찾고 `text`로는 찾는 것, 표 찾기 끄기, 실행 근거, 옛 엔진에 옵션 없이 예전 필드가 가는 것. 전체 83개(두 전송 방식).
 - 계획: `docs/ENGINE_PLAN.md`. ToolPDF API를 그대로 계약으로 하는 `PdfEngine` 인터페이스, ToolPDF 클라이언트와 MIT 라이브러리(pypdfium2, pdfplumber/pdfminer.six, Pillow, reportlab, python-docx/pptx, openpyxl) 내장 엔진, 두 앱이 함께 쓰는 별도 MIT 패키지, conformance 시험, 단계와 정할 것.
-- 남은 일: ToolPDF 0.2.0을 ToolPDF 저장소에 커밋하고 배포 폴더를 다시 만들어야 묶음에 들어간다. 암호 PDF는 2-30에서 했다.
+- 남은 일이던 것: ToolPDF 0.2.0은 ToolPDF 저장소에 커밋됨(`ea72cd3`), 배포 폴더와 묶음은 2-30 끝에서 다시 만들었다. 암호 PDF는 2-30에서 했다.
 
 ### 2-28. 에이전트 설명서와 규칙 화면 (10-09)
 
