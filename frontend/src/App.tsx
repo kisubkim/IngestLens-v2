@@ -8,6 +8,15 @@ import SettingsView from "./SettingsView";
 import RulesView from "./RulesView";
 
 const ACCEPT_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".hwp", ".png", ".jpg", ".jpeg", ".tif", ".tiff"];
+// Plain text: drawn as PDF pages on the server, which checks that the content really is text.
+const TEXT_EXT = [".txt", ".text", ".log", ".md", ".csv", ".tsv", ".json", ".xml", ".yaml", ".yml", ".ini", ".cfg", ".conf"];
+
+/** Files without an extension (README, syslog) are accepted too: the server decides from the content. */
+function accepted(name: string) {
+  const base = name.toLowerCase();
+  const dot = base.lastIndexOf(".");
+  return dot <= 0 || [...ACCEPT_EXT, ...TEXT_EXT].some((ext) => base.endsWith(ext));
+}
 
 type Panel = "doc" | "settings" | "evals" | "status" | "rules";
 const HASH_PANELS = ["#evals", "#settings", "#status", "#rules"];
@@ -28,8 +37,7 @@ function splitFiles(files: File[]) {
   const ok: File[] = [];
   const skipped: string[] = [];
   for (const file of files) {
-    const name = file.name.toLowerCase();
-    if (ACCEPT_EXT.some((ext) => name.endsWith(ext))) ok.push(file);
+    if (accepted(file.name)) ok.push(file);
     else skipped.push(file.name);
   }
   return { ok, skipped };
@@ -204,7 +212,6 @@ export default function App() {
           type="file"
           hidden
           multiple
-          accept={ACCEPT_EXT.join(",")}
           onChange={(e) => {
             upload(Array.from(e.target.files ?? []));
             e.target.value = "";

@@ -137,12 +137,14 @@ cd backend && RAG_TOOLPDF_TRANSFER=http ../.venv/Scripts/python -m pytest -q    
 
 ## 지원 형식
 
-PDF가 아닌 문서는 ToolPDF가 PDF로 바꾼다(`/v1/normalize`).
+PDF가 아닌 문서는 PDF 엔진이 PDF로 바꾼다(ToolPDF `/v1/normalize` 또는 내장 엔진). 텍스트 파일은 앱이 직접 PDF 쪽으로 그린다.
 
 | 형식 | 처리 |
 |---|---|
 | PDF | 그대로 처리 |
 | 이미지 (png/jpg/tif) | 1페이지 PDF로 감싸서 처리 |
+| CSV, TSV | 표이면 엑셀처럼 그린다(24행마다 한 쪽, 쪽마다 머리 행 반복). 그래서 청크마다 열 이름이 붙는다. 열이 20개를 넘거나 행마다 칸 수가 다르면 아래 텍스트처럼 처리 |
+| 텍스트 (txt, log, md, json 등, 확장자 없는 파일 포함) | 내용이 글자인지 보고(UTF-8, UTF-16 BOM, CP949) 줄을 그대로 A4 쪽에 그려 처리. 아주 큰 로그는 `text.max_chars`(기본 500만 자)에서 자르고 근거에 남긴다 |
 | docx / pptx | ToolPDF에 LibreOffice가 있으면 LibreOffice로 PDF 변환하고, 없으면 ToolPDF의 자체 렌더링을 쓴다. 두 경우 모두 원본에서 헤딩, 슬라이드 제목, 발표자 노트, PPT 차트 데이터를 추가로 받아 파싱에 쓴다 |
 | xlsx | 기본은 자체 렌더링. 시트를 24행 단위 표로 나누고 헤더를 반복한다 (`office.xlsx`) |
 | doc / ppt / hwp 등 | ToolPDF에 LibreOffice 필요(ToolPDF 이미지를 `WITH_LIBREOFFICE=1`로 빌드) |

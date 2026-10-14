@@ -8,11 +8,14 @@ from ..config import rules_cfg, settings
 from ..db import session
 from ..events import emit_event, record_decision
 from ..models import Document
-from ..tools.office import NATIVE_FORMATS, OFFICE_EXT, detect
+from ..tools.csvdoc import judge, read_rows, write_xlsx
 from ..tools.engine import PasswordError, engine
+from ..tools.office import NATIVE_FORMATS, OFFICE_EXT, detect
+from ..tools.textdoc import text_to_pdf
 from .common import PipelineState, get_document, update_summary
 
 STEP = "intake"
+CSV_EXT = {"csv", "tsv"}
 
 
 async def intake(state: PipelineState) -> dict:
@@ -42,6 +45,11 @@ async def intake(state: PipelineState) -> dict:
         rule, choice = "image_wrap", "Image: wrap as a one-page PDF"
     elif fmt in OFFICE_EXT:
         pdf, pdf_info, rule, choice, hints, alternatives = await _office(run_id, src, fmt, out_dir, inputs)
+    elif fmt == "text" and info["extension"] in CSV_EXT and (table := await _csv_table(run_id, src, info["encoding"], out_dir, inputs)):
+        pdf, pdf_info, rule, choice, hints, alternatives = table
+        fmt = "csv"
+    elif fmt == "text":
+        pdf, pdf_info, rule, choice = await _text(run_id, src, info["encoding"], out_dir, inputs)
     else:
         raise ValueError(f"Unsupported format: .{info['extension']} ({info['magic_mime']})")
 
@@ -91,6 +99,52 @@ def _record_engine(run_id: str) -> None:
                     alternatives=[{"choice": other, "reason_rejected": why}], confidence=1.0,
                     reasoning="Both engines follow the same contract (ToolPDF API 0.2.0). ToolPDF uses PyMuPDF; the local "
                               "engine uses permissive libraries inside the app (pypdfium2, pdfplumber).")
+
+
+async def _csv_table(run_id: str, src: Path, encoding: str, out_dir: Path, inputs: dict):
+    """CSV/TSV that is really a table: written as a one-sheet xlsx and drawn by the engine's spreadsheet renderer, so
+    every page (and chunk) repeats the header row. Returns None (plain text instead) when it is not a table."""
+    office, max_cols = rules_cfg()["office"], rules_cfg()["text"]["csv_max_columns"]
+    rows, delim, truncated = await asyncio.to_thread(read_rows, src, encoding, office["xlsx_max_rows"])
+    is_table, evidence = judge(rows, max_cols)
+    evidence |= {"delimiter": delim, "encoding": encoding}
+    if not is_table:
+        record_decision(run_id, STEP, "CSV layout", "plain text (not a table)", rule_id="csv_as_text", inputs=evidence,
+                        alternatives=[{"choice": "table (spreadsheet render)", "reason_rejected": evidence["reason"]}],
+                        confidence=0.8,
+                        reasoning="The rows do not form a regular table that fits a page, so the file is drawn line by line.")
+        return None
+    emit_event(run_id, "progress", STEP, f"Rendering CSV as a table ({evidence['rows']} rows x {evidence['columns']} columns)")
+    xlsx = await asyncio.to_thread(write_xlsx, rows, out_dir / (src.name + ".xlsx"), src.stem or src.name)
+    pdf = out_dir / (src.name + ".pdf")
+    res = await asyncio.to_thread(engine().normalize, xlsx, xlsx.name, "native", pdf, True,
+                                  office["xlsx_rows_per_page"], office["xlsx_max_rows"])
+    inputs |= evidence | {"truncated": truncated}
+    if truncated:
+        record_decision(run_id, STEP, "CSV length", f"cut at {office['xlsx_max_rows']:,} rows", rule_id="csv_truncated",
+                        inputs={"max_rows": office["xlsx_max_rows"]},
+                        alternatives=[{"choice": "all rows", "reason_rejected": "more than office.xlsx_max_rows"}], confidence=1.0,
+                        reasoning="Large tables are cut like spreadsheets; raise office.xlsx_max_rows on the rules screen to take more.")
+    hints = {**res["hints"], "renderer": "native", "source": "csv"}
+    alternatives = [{"choice": "plain text", "reason_rejected": "column names would appear only in the first chunk"}]
+    return pdf, res, "csv_table", f"CSV: render as a table, header on every page ({evidence['rows']} rows x {evidence['columns']} columns)", hints, alternatives
+
+
+async def _text(run_id: str, src: Path, encoding: str, out_dir: Path, inputs: dict):
+    """Plain text (.txt, .log, no extension): decoded and drawn as A4 pages, one text line per PDF line."""
+    cfg = rules_cfg()["text"]
+    pdf = out_dir / (src.name + ".pdf")
+    emit_event(run_id, "progress", STEP, f"Rendering text ({encoding}) as PDF pages")
+    res = await asyncio.to_thread(text_to_pdf, src, pdf, encoding, cfg["font_size"], cfg["max_chars"], settings.cjk_font)
+    inputs |= {"encoding": encoding, "lines": res["lines"], "chars": res["chars"], "font": res["font"]}
+    if res["truncated"]:
+        record_decision(run_id, STEP, "text length", f"cut at {cfg['max_chars']:,} characters", rule_id="text_truncated",
+                        inputs={"max_chars": cfg["max_chars"], "size_mb": inputs.get("size_mb")},
+                        alternatives=[{"choice": "whole file", "reason_rejected": "longer than text.max_chars"}], confidence=1.0,
+                        reasoning="Very long text (large logs) would make thousands of pages; the rest of the file is not ingested. "
+                                  "Raise text.max_chars on the rules screen to take more.")
+    pdf_info = await asyncio.to_thread(engine().info, pdf)
+    return pdf, pdf_info, "text_render", f"Text ({encoding}): render as PDF pages"
 
 
 async def _office(run_id: str, src: Path, fmt: str, out_dir: Path, inputs: dict):

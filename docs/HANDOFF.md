@@ -25,6 +25,7 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| 텍스트 파일 (10-15) | 완료 | txt, log, 확장자 없는 파일 등 내용이 글자인 파일을 A4 쪽으로 그려 처리(`tools/textdoc.py`, 근거 `text_render`). CSV·TSV는 표이면 엑셀처럼 그려 청크마다 머리 행(`csv_table`). 업로드 화면도 받음 |
 | PDF 엔진 인터페이스와 내장 엔진 (10-10) | 완료 | ToolPDF 0.2.0 옵션 연결, `PdfEngine` 인터페이스(`backend/app/engines/`), 내장 엔진, `RAG_PDF_ENGINE=auto/toolpdf/local`, 암호 PDF(업로드·나중에 입력), 두 엔진 conformance 시험, ToolPDF 없는 배포 묶음(`--pdf-engine local`)과 `start_local.bat local` |
 | 에이전트 규칙 화면 (10-09) | 완료 | `/#rules`: 에이전트별 규칙 값을 화면에서 바꾸고 바로 적용. 검사, 바꾼 항목만 데이터 폴더에 저장, 실행마다 규칙 버전 기록. 설명 `docs/AGENTS.md` |
 
@@ -32,7 +33,7 @@
 
 | 항목 | 검증 방법 | 실제 환경 검증 |
 |---|---|---|
-| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 114개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각, 그리고 `RAG_PDF_ENGINE=local`로 전체), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
+| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 121개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각, 그리고 `RAG_PDF_ENGINE=local`로 전체), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
 | PDF 엔진 ToolPDF | 테스트가 ToolPDF를 직접 띄움(`tests/conftest.py`), Docker 스택, Windows `start_local.bat` | ToolPDF를 넣은 묶음을 이 PC에서 Docker(`install.sh`)와 Apptainer(`singularity.sh start`)로 확인(10-09). 실제 오프라인 서버에서는 아직 |
 | 내장 PDF 엔진 | conformance 시험 21개(ToolPDF 답과 비교), 앱 시험 전체를 `RAG_PDF_ENGINE=local`로, 공개 문서 10종 비교(7절) | ToolPDF 없는 묶음을 WSL Docker에 `install.sh`로 설치해 PDF·docx(나눔 글꼴)·암호 PDF 처리(10-10). Windows `start_local.bat local`. 실제 운영 문서와 검색 품질 비교는 아직 |
 | Windows PC (Docker 없이) | `setup_local.bat`, `start_local.bat`, `stop_local.bat` | Windows용 Ollama 0.40.1(`qwen2.5vl:7b`, `bge-m3`)로 `docs/WINDOWS.md` 3절 순서 그대로 확인. 한국어 실제 스캔 OCR까지(10-09) |

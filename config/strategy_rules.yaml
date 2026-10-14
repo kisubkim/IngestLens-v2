@@ -92,6 +92,11 @@ engine:
     annots: true                # draw PDF annotations (notes, highlights, form fields)
     crop_pad: 6                 # margin (pt) around table and figure crops
 
+text:                      # plain text files (.txt, .log, no extension): drawn as A4 PDF pages
+  font_size: 9
+  max_chars: 5000000        # longer text (big logs) is cut and the decision says so
+  csv_max_columns: 20       # CSV/TSV with more columns is drawn as text, not as a table
+
 office:
   prefer: libreoffice      # libreoffice | native. native = python-docx/pptx/openpyxl rendering, no LibreOffice needed
   xlsx: native              # spreadsheets: native keeps every table readable; LibreOffice cuts wide sheets across pages

@@ -21,7 +21,7 @@ LABELS = ["text", "scanned", "table", "diagram", "chart", "image_heavy", "mixed"
 PARSERS = ["pymupdf_text", "pymupdf_tables", "vlm_ocr", "vlm_figures"]
 
 AGENTS = [
-    {"key": "intake", "label": "형식 판별", "about": "Office 문서를 PDF로 바꾸는 방법. PDF·이미지는 바꿀 값이 없다."},
+    {"key": "intake", "label": "형식 판별", "about": "Office 문서와 텍스트 파일을 PDF로 바꾸는 방법. PDF·이미지는 바꿀 값이 없다."},
     {"key": "profile", "label": "콘텐츠 분석", "about": "쪽마다 특징을 재서 라벨을 붙이는 규칙. 위에서부터 처음 맞는 규칙을 쓴다."},
     {"key": "strategy", "label": "전략 결정", "about": "쪽 라벨별 파서와 청킹 방식을 고르는 기준. 청크 크기는 청킹 탭에 있다."},
     {"key": "parse", "label": "파싱", "about": "추출 묶음 크기, 그림·캡션·표 재추출 기준."},
@@ -45,6 +45,12 @@ FIELDS = [
     _f("intake", ["office", "xlsx"], "엑셀 변환", "native: 시트를 표로 그려 모든 칸이 읽힌다(권장). libreoffice: 넓은 시트가 쪽마다 잘린다.",
        "choice", choices=["native", "libreoffice"]),
     _f("intake", ["office", "xlsx_rows_per_page"], "엑셀 쪽당 행 수", "시트를 이 행 수마다 한 쪽으로 나누고 머리 행을 반복한다.", "int", min=1, max=500),
+    _f("intake", ["text", "font_size"], "텍스트 글자 크기", "txt·log·확장자 없는 텍스트 파일을 PDF 쪽으로 그릴 때의 글자 크기(pt). 작을수록 쪽당 줄이 많다.",
+       "float", min=6, max=16),
+    _f("intake", ["text", "max_chars"], "텍스트 최대 글자 수", "넘으면 뒤를 잘라내고 근거(text_truncated)에 남긴다. 큰 로그 파일용.",
+       "int", min=1000, max=100_000_000),
+    _f("intake", ["text", "csv_max_columns"], "CSV 표 최대 열 수", "CSV·TSV가 이 열 수 이하이고 행마다 칸 수가 고르면 엑셀처럼 표로 그려 쪽마다 머리 행을 반복한다. 넘으면 글자 그대로 그린다.",
+       "int", min=2, max=200),
     _f("intake", ["office", "xlsx_max_rows"], "엑셀 시트당 최대 행 수", "넘으면 잘라내고 근거에 남긴다.", "int", min=1, max=1_000_000),
     # profile
     _f("profile", ["profiler", "rules"], "쪽 분류 규칙", "위에서부터 차례로 보고 조건이 모두 맞는 첫 규칙의 라벨을 붙인다. 조건 min_: 특징 ≥ 값, max_: 특징 ≤ 값.",

@@ -19,7 +19,7 @@ from .common import PipelineState, update_summary
 
 STEP = "strategy"
 SLIDE_FORMATS = {"ppt", "pptx", "odp"}
-SHEET_FORMATS = {"xls", "xlsx", "ods"}
+SHEET_FORMATS = {"xls", "xlsx", "ods", "csv"}  # csv: only when drawn as a table (intake csv_table)
 
 
 async def strategy(state: PipelineState) -> dict:
