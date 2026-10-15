@@ -18,6 +18,8 @@ OWUI_IMAGE="${OWUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.11.3}"
 OWUI_PORT="${OWUI_PORT:-3000}"
 # 채팅 기본 모델. docker-compose.yml 의 CHAT_MODEL 과 같게 둔다(ollama-pull 이 받는다). 바꾸면 컨테이너를 다시 만들어야 적용된다(recreate).
 OWUI_CHAT_MODEL="${OWUI_CHAT_MODEL:-gemma4:e4b}"
+# IngestLens 바이너리 분석 도구(도구 서버, deploy/OPENWEBUI.md 11절). 바꾸면 recreate.
+OWUI_TOOL_SERVERS='[{"type":"openapi","url":"http://app:8000/api/tools/binary","path":"openapi.json","auth_type":"bearer","key":"","config":{"enable":true,"access_control":null},"info":{"name":"IngestLens binary","description":"바이너리(장비 로그) 형식 분석과 해석"}}]'
 # 질문마다 가져올 청크 수(RAG_TOP_K, RAG_TOP_K_RERANKER). deploy/OPENWEBUI.md 4-4. 바꾸면 recreate.
 OWUI_TOP_K="${OWUI_TOP_K:-5}"
 # hybrid 검색에서 키워드(BM25) 점수의 비중(0~1, Open WebUI 기본 0.5). 바꾸면 recreate.
@@ -64,6 +66,7 @@ up_webui() {
         -e RAG_RERANKING_MODEL=BAAI/bge-reranker-v2-m3 \
         -e CHUNK_SIZE=8000 -e CHUNK_OVERLAP=0 -e CHUNK_MIN_SIZE_TARGET=0 -e ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER=false \
         -e RAG_TOP_K="$OWUI_TOP_K" -e RAG_TOP_K_RERANKER="$OWUI_TOP_K" \
+        -e TOOL_SERVER_CONNECTIONS="$OWUI_TOOL_SERVERS" \
         "$OWUI_IMAGE" >/dev/null || { say "[오류] Open WebUI 컨테이너를 만들지 못했습니다."; exit 1; }
       ;;
     *)

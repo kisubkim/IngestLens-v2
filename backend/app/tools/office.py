@@ -1,4 +1,5 @@
-"""Format detection. Conversion to PDF is done by the PDF engine (tools/engine.py); plain text by tools/textdoc.py."""
+"""Format detection. Conversion to PDF is done by the PDF engine (tools/engine.py); plain text by tools/textdoc.py;
+other binary content gets an overview for format analysis (tools/binview.py)."""
 
 from pathlib import Path
 
@@ -30,6 +31,6 @@ def detect(path: Path) -> dict:
     elif magic_ext is None and (encoding := sniff(path)):
         fmt = "text"
     else:
-        fmt = "unknown"
+        fmt = "binary"  # any other content: device logs and other undocumented formats (tools/binview.py)
     return {"extension": ext, "magic_mime": magic_mime, "magic_ext": magic_ext, "format": fmt, "encoding": encoding,
             "mismatch": bool(magic_ext and magic_ext not in (ext, "zip") and not (magic_ext == "jpg" and ext == "jpeg"))}

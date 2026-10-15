@@ -51,11 +51,18 @@ async def save_stream(filename: str, stream: AsyncIterator[bytes], password: str
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / _safe_name(filename)
     h, size = hashlib.sha256(), 0
+    limit = settings.max_upload_mb * 2**20
     with dest.open("wb") as f:
         async for data in stream:
             h.update(data)
             size += len(data)
+            if limit and size > limit:
+                break
             f.write(data)
+    if limit and size > limit:
+        dest.unlink()
+        dest_dir.rmdir()
+        raise HTTPException(413, f"file larger than {settings.max_upload_mb:g} MB (RAG_MAX_UPLOAD_MB)")
     if not size:
         dest.unlink()
         dest_dir.rmdir()

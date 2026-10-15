@@ -7,16 +7,7 @@ import StatusView, { StatusBadge, useBackendStatus } from "./StatusView";
 import SettingsView from "./SettingsView";
 import RulesView from "./RulesView";
 
-const ACCEPT_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".hwp", ".png", ".jpg", ".jpeg", ".tif", ".tiff"];
-// Plain text: drawn as PDF pages on the server, which checks that the content really is text.
-const TEXT_EXT = [".txt", ".text", ".log", ".md", ".csv", ".tsv", ".json", ".xml", ".yaml", ".yml", ".ini", ".cfg", ".conf"];
-
-/** Files without an extension (README, syslog) are accepted too: the server decides from the content. */
-function accepted(name: string) {
-  const base = name.toLowerCase();
-  const dot = base.lastIndexOf(".");
-  return dot <= 0 || [...ACCEPT_EXT, ...TEXT_EXT].some((ext) => base.endsWith(ext));
-}
+// Any file is accepted: the server tells PDF, Office, images, text and binary data apart by content.
 
 type Panel = "doc" | "settings" | "evals" | "status" | "rules";
 const HASH_PANELS = ["#evals", "#settings", "#status", "#rules"];
@@ -37,7 +28,7 @@ function splitFiles(files: File[]) {
   const ok: File[] = [];
   const skipped: string[] = [];
   for (const file of files) {
-    if (accepted(file.name)) ok.push(file);
+    if (file.size > 0) ok.push(file);
     else skipped.push(file.name);
   }
   return { ok, skipped };
@@ -89,7 +80,7 @@ export default function App() {
   const upload = async (files: File[]) => {
     if (!files.length || busy) return;
     const { ok, skipped } = splitFiles(files);
-    const skippedMsg = skipped.length ? `지원하지 않는 형식은 올리지 않았습니다: ${skipped.join(", ")}` : null;
+    const skippedMsg = skipped.length ? `빈 파일은 올리지 않았습니다: ${skipped.join(", ")}` : null;
     if (!ok.length) {
       setError(skippedMsg);
       return;

@@ -2,12 +2,14 @@
 the PDF engine). An encrypted PDF opens with the document's stored password."""
 
 import asyncio
+import json
 from pathlib import Path
 
 from ..config import rules_cfg, settings
 from ..db import session
 from ..events import emit_event, record_decision
 from ..models import Document
+from ..tools import binview
 from ..tools.csvdoc import judge, read_rows, write_xlsx
 from ..tools.engine import PasswordError, engine
 from ..tools.office import NATIVE_FORMATS, OFFICE_EXT, detect
@@ -50,6 +52,8 @@ async def intake(state: PipelineState) -> dict:
         fmt = "csv"
     elif fmt == "text":
         pdf, pdf_info, rule, choice = await _text(run_id, src, info["encoding"], out_dir, inputs)
+    elif fmt == "binary":
+        pdf, pdf_info, rule, choice = await _binary(run_id, doc, src, out_dir, inputs)
     else:
         raise ValueError(f"Unsupported format: .{info['extension']} ({info['magic_mime']})")
 
@@ -99,6 +103,34 @@ def _record_engine(run_id: str) -> None:
                     alternatives=[{"choice": other, "reason_rejected": why}], confidence=1.0,
                     reasoning="Both engines follow the same contract (ToolPDF API 0.2.0). ToolPDF uses PyMuPDF; the local "
                               "engine uses permissive libraries inside the app (pypdfium2, pdfplumber).")
+
+
+async def _binary(run_id: str, doc, src: Path, out_dir: Path, inputs: dict):
+    """Binary content (device logs, undocumented formats): an overview for working out the format (header hex,
+    likely record size and header size, field candidates, sample records, strings) is drawn as pages and chunked.
+    The file itself stays for the binary tools (api/binary.py: read bytes, decode with a spec, export JSON)."""
+    emit_event(run_id, "progress", STEP, "Analysing binary layout")
+    info = await asyncio.to_thread(binview.analyse, src)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "binary_overview.json").write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
+    text_path = out_dir / "binary_overview.txt"
+    text_path.write_text(binview.overview_text(doc.filename, doc.id, info), encoding="ascii", errors="replace")
+    cfg = rules_cfg()["text"]
+    pdf = out_dir / (src.name + ".overview.pdf")
+    await asyncio.to_thread(text_to_pdf, text_path, pdf, "ascii", cfg["font_size"], cfg["max_chars"], "", True)
+    per = info["period"]
+    inputs |= {"magic": info["magic"], "entropy": info["entropy"], "record_size": per.get("record_size"),
+               "record_confidence": per.get("confidence"), "header_size": (info.get("layout") or {}).get("header_size"),
+               "strings": len(info["strings"])}
+    if per.get("record_size"):
+        choice = f"Binary: overview with fixed records of {per['record_size']} bytes after a {info['layout']['header_size']}-byte header"
+    else:
+        choice = "Binary: overview (no fixed record size found)"
+    if info["entropy"] >= 7.5:
+        emit_event(run_id, "warning", STEP, f"Entropy {info['entropy']} bits/byte: the data looks compressed or encrypted; "
+                                            "its fields cannot be read until it is unpacked", {"entropy": info["entropy"]})
+    pdf_info = await asyncio.to_thread(engine().info, pdf)
+    return pdf, pdf_info, "binary_overview", choice
 
 
 async def _csv_table(run_id: str, src: Path, encoding: str, out_dir: Path, inputs: dict):

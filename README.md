@@ -143,6 +143,7 @@ PDF가 아닌 문서는 PDF 엔진이 PDF로 바꾼다(ToolPDF `/v1/normalize` �
 |---|---|
 | PDF | 그대로 처리 |
 | 이미지 (png/jpg/tif) | 1페이지 PDF로 감싸서 처리 |
+| 그 밖의 바이너리 (장비 로그 등) | 형식 분석용 개요(레코드 길이·헤더 추정, 필드 후보, hex, 문자열)를 넣는다. Open WebUI에서 LLM이 형식 명세를 쓰고 IngestLens가 파일 전체를 해석·JSON으로 내보낸다(`deploy/OPENWEBUI.md` 11절) |
 | CSV, TSV | 표이면 엑셀처럼 그린다(24행마다 한 쪽, 쪽마다 머리 행 반복). 그래서 청크마다 열 이름이 붙는다. 열이 20개를 넘거나 행마다 칸 수가 다르면 아래 텍스트처럼 처리 |
 | 텍스트 (txt, log, md, json 등, 확장자 없는 파일 포함) | 내용이 글자인지 보고(UTF-8, UTF-16 BOM, CP949) 줄을 그대로 A4 쪽에 그려 처리. 아주 큰 로그는 `text.max_chars`(기본 500만 자)에서 자르고 근거에 남긴다 |
 | docx / pptx | ToolPDF에 LibreOffice가 있으면 LibreOffice로 PDF 변환하고, 없으면 ToolPDF의 자체 렌더링을 쓴다. 두 경우 모두 원본에서 헤딩, 슬라이드 제목, 발표자 노트, PPT 차트 데이터를 추가로 받아 파싱에 쓴다 |

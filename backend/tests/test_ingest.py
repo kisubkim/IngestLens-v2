@@ -59,9 +59,9 @@ def test_openwebui_loader_extension_from_content_type(tmp_path):
 
 def test_openwebui_loader_errors():
     with TestClient(app) as client:
-        # Plain text is ingested (test_text.py); binary content of an unknown kind is not.
-        res = client.put("/api/openwebui/process", content=bytes(range(256)) * 4, headers={"X-Filename": "note.xyz"})
-        assert res.status_code == 502 and "Unsupported format" in res.json()["detail"]
+        # A file that claims to be a PDF but is not one fails in the engine and reaches Open WebUI as 502.
+        res = client.put("/api/openwebui/process", content=b"not really a pdf", headers={"X-Filename": "broken.pdf"})
+        assert res.status_code == 502
         assert client.put("/api/openwebui/process", content=b"", headers={"X-Filename": "a.pdf"}).status_code == 400
 
 

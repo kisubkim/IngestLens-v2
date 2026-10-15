@@ -18,6 +18,8 @@ services:
       RAG_PDF_ENGINE: local
       # 사용자들이 다른 PC에서 접속하므로, 설정 변경·문서 삭제·수집 API는 이 키로만 허용된다. 반드시 설정한다.
       RAG_API_KEY: ${RAG_API_KEY:-}
+      # 사용자가 브라우저로 여는 이 서버의 주소(예: http://10.0.0.5:8000). 바이너리 도구의 JSON 내려받기 링크에 쓴다
+      RAG_PUBLIC_URL: ${RAG_PUBLIC_URL:-}
     volumes:
       - ${INGESTLENS_DATA_DIR:-./data}:/data      # 올린 문서, DB, 벡터. 백업 대상
       - ./models.yaml:/config/models.yaml:ro

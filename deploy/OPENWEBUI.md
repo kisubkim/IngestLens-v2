@@ -322,3 +322,53 @@ docker run -d --name open-webui -p 3000:8080 \
 - 썸네일 줄은 Open WebUI의 임베드(iframe)로 넣는다. Markdown 이미지로 넣으면 Open WebUI가 원래 크기로 그리고, 눌렀을 때의 미리보기도 원래 크기까지만 키운다. 그래서 "작은 썸네일 + 선명한 큰 이미지"를 만들 수 없고, 링크를 함께 걸면 창이 두 개 열린다.
 - 임베드는 Open WebUI가 답변 글 위에 놓는다. 위치는 Open WebUI가 정한다.
 - Open WebUI 0.11.3에서 확인했다. 가로 문서(16:9 pptx)와 세로 문서(A4 PDF) 모두 시험했다.
+
+## 11. 바이너리(장비 로그) 형식 분석 도구 (도구 서버)
+
+형식 명세가 없는 바이너리 파일(장비 로그 등)을 Open WebUI 채팅에서 LLM과 함께 분석한다. LLM은 구조를 추측해 **형식 명세(YAML)**를 쓰고, 파일 전체를 읽고 바꾸는 일은 IngestLens가 코드로 정확히 한다. 20MB 로그도 LLM이 hex를 직접 읽지 않으므로 문맥에 들어간다.
+
+흐름:
+1. 채팅에 로그 파일을 첨부한다. 문서 로더(4절)가 IngestLens로 보내고, IngestLens는 **개요**를 돌려준다. 개요에는 문서 ID, 크기, 엔트로피, 추정 레코드 길이와 헤더 크기, 레코드 안의 고정 바이트·카운터·시각·실수 후보, 표본 레코드와 헤더 hex, 문자열과 위치, 명세 형식 설명이 들어 있다.
+2. 모델이 IngestLens 도구를 부른다.
+
+| 도구 | 하는 일 |
+|---|---|
+| `binary_list` | 최근 넣은 바이너리 파일 목록 |
+| `binary_overview` | 파일의 개요 전체(첨부 내용이 검색으로 잘려 들어갔을 때도 이것으로 다시 본다) |
+| `binary_read_bytes` | 지정한 위치의 바이트를 hex로(최대 4096바이트) |
+| `binary_decode` | 명세로 파일 전체를 해석하고 검사: 레코드 수, 남는 바이트, 헤더 값, 필드별 범위·NaN·증가 비율·반대 엔디언일 때의 범위, 경고, 앞 레코드. 경고가 없어질 때까지 명세를 고친다 |
+| `binary_records` | 특정 레코드의 값(예: 1532번째 레코드의 온도), 한 번에 200개까지 |
+| `binary_export` | 파일 전체를 JSON(`{"header": {...}, "records": [...]}`)으로 만들고 내려받기 링크를 준다 |
+
+3. 확정된 명세는 같은 장비의 다른 로그에도 그대로 쓴다. 명세 형식은 개요 끝과 `binary_decode` 설명에 있다.
+
+```yaml
+endian: little
+header: 64
+record_size: 32
+header_fields:
+  - {name: device, offset: 12, type: str, size: 24}
+fields:
+  - {name: time, offset: 0, type: u32, time: unix_s}
+  - {name: temperature, offset: 4, type: f32, unit: C}
+  - {name: flags, offset: 14, type: u8, bits: {alarm: 0, door: 1}}
+  - {name: pressure, offset: 20, type: i16, scale: 0.1}
+```
+
+### 11-1. 설정
+
+1. **IngestLens:** `RAG_PUBLIC_URL`에 사용자가 브라우저로 여는 IngestLens 주소를 적는다(`.env` 또는 `singularity.env`, 예: `http://10.0.0.5:8000`). JSON 내려받기 링크에 쓴다. 업로드 한도는 `RAG_MAX_UPLOAD_MB`(기본 100).
+2. **Open WebUI:** 관리자 설정 → 연결(또는 도구) → **도구 서버(OpenAPI)** 추가.
+   - URL: `http://<IngestLens 주소>:8000/api/tools/binary`, OpenAPI 경로: `openapi.json`
+   - 인증: Bearer, 키는 IngestLens의 `RAG_API_KEY`(문서 로더 키와 같다)
+   - 저장하면 "IngestLens binary" 도구가 생긴다. 사용자에게 열려면 접근 권한을 정한다.
+   - 환경 변수로 넣을 때(Open WebUI 0.11.3에서 확인): `TOOL_SERVER_CONNECTIONS='[{"type":"openapi","url":"http://<IngestLens 주소>:8000/api/tools/binary","path":"openapi.json","auth_type":"bearer","key":"<RAG_API_KEY>","config":{"enable":true},"info":{"name":"IngestLens binary"}}]'`
+3. **모델:** 도구 호출(function calling)을 하는 모델이 필요하다. 모델 설정의 고급 매개변수에서 함수 호출을 **Native**로 둔다. vLLM은 도구 호출을 켜고(`--enable-auto-tool-choice`와 그 모델에 맞는 `--tool-call-parser`, 모델마다 다르므로 vLLM 문서에서 확인) 띄워야 한다.
+4. **채팅:** 입력창의 `+`(또는 도구 아이콘)에서 "IngestLens binary"를 켜고 로그 파일을 첨부한 뒤 묻는다. 예: "첨부한 장비 로그의 형식을 분석해서 명세를 만들고 binary_decode로 경고가 없을 때까지 검증한 다음, 1532번째 레코드의 시각과 온도를 알려 줘."
+
+### 11-2. 확인한 것과 한계
+
+- 이 PC(2026-10-16): 합성 장비 로그(헤더 64바이트 + 32바이트 레코드 4,000개)를 Open WebUI 0.11.3에 첨부하면 개요가 들어가고, 도구 서버가 등록되어 모델이 도구를 부른다. 같은 도구로 Ollama `gemma4:12b`가 6번의 도구 호출(목록, 개요, 명세 오류 수정, 검증, 조회)로 명세를 확정하고 레코드 값과 헤더의 장치 이름을 맞게 답했다(63초). Open WebUI 화면에서 도구 실행까지 이어지는 흐름은 사람이 화면으로 확인해야 한다.
+- 고정 길이 레코드만 해석한다. 길이가 바뀌는 레코드(앞에 길이가 붙는 형식), 압축·암호화된 데이터(개요의 엔트로피가 8에 가까우면)는 아직 명세로 표현할 수 없다.
+- 작은 모델(`gemma4:e4b`)은 첨부한 개요는 읽지만 명세를 끝까지 다듬는 데 약할 수 있다. 운영 모델로 확인한다.
+- 내려받기 링크(`/api/tools/binary/exports/...`)는 키 없이 열린다(이름이 해시). IngestLens 포트는 내부망에만 연다.

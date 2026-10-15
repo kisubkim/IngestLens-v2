@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     api_key: str = ""  # Bearer token for the ingest API (/api/ingest, Open WebUI loader); empty = no auth
     admin_hosts: str = ""  # extra IPs/CIDRs treated as "this machine" for settings changes (Docker bridge gateway)
     data_dir_hint: str = ""  # shown when data_dir is locked, e.g. how the Docker volume decides the data folder
+    public_url: str = ""  # this app's address as users' browsers reach it (download links in tool answers); empty = the request's
+    max_upload_mb: float = 100  # larger uploads are refused (413) while streaming; 0 = no limit
     ingest_wait_seconds: float = 3600  # how long the Open WebUI loader waits for a run before giving up
     evals_dir: Path = ROOT / "evals" / "results"  # result files of scripts/eval_*.py shown by the comparison screen
 

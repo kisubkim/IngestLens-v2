@@ -25,6 +25,7 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| 바이너리 형식 분석 (10-16) | 완료 | 장비 로그 등 바이너리를 받아 개요(레코드 길이·헤더 추정, 필드 후보, hex, 문자열)를 넣고, Open WebUI 도구 서버(`/api/tools/binary`)로 LLM이 형식 명세를 써서 파일 전체를 해석·조회·JSON으로 내보냄. 업로드 한도 `RAG_MAX_UPLOAD_MB` |
 | 텍스트 파일 (10-15) | 완료 | txt, log, 확장자 없는 파일 등 내용이 글자인 파일을 A4 쪽으로 그려 처리(`tools/textdoc.py`, 근거 `text_render`). CSV·TSV는 표이면 엑셀처럼 그려 청크마다 머리 행(`csv_table`). 업로드 화면도 받음 |
 | PDF 엔진 인터페이스와 내장 엔진 (10-10) | 완료 | ToolPDF 0.2.0 옵션 연결, `PdfEngine` 인터페이스(`backend/app/engines/`), 내장 엔진, `RAG_PDF_ENGINE=auto/toolpdf/local`, 암호 PDF(업로드·나중에 입력), 두 엔진 conformance 시험, ToolPDF 없는 배포 묶음(`--pdf-engine local`)과 `start_local.bat local` |
 | 에이전트 규칙 화면 (10-09) | 완료 | `/#rules`: 에이전트별 규칙 값을 화면에서 바꾸고 바로 적용. 검사, 바꾼 항목만 데이터 폴더에 저장, 실행마다 규칙 버전 기록. 설명 `docs/AGENTS.md` |
@@ -33,7 +34,7 @@
 
 | 항목 | 검증 방법 | 실제 환경 검증 |
 |---|---|---|
-| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 121개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각, 그리고 `RAG_PDF_ENGINE=local`로 전체), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
+| 파이프라인 전체, UI 6개 탭, 여러 파일 순차 실행, HTTP 수집 API, 저장 위치 설정, VLM 평가 비교, 첫 화면, 상태 표시, 삭제 | 백엔드 테스트 128개(실제 ToolPDF를 띄워 공유 폴더 방식과 HTTP 방식 각각, 그리고 `RAG_PDF_ENGINE=local`로 전체), 화면은 headless Edge 캡처와 DevTools 조작으로 확인 | 개발 PC(Windows)의 Docker 스택(ToolPDF 공유 폴더 방식). 오프라인 서버에서 사용자가 sif로 앱을 실행해 봄(2026-10-06): 문서 하나 삭제가 401로 실패하는 버그를 찾아 고침 |
 | PDF 엔진 ToolPDF | 테스트가 ToolPDF를 직접 띄움(`tests/conftest.py`), Docker 스택, Windows `start_local.bat` | ToolPDF를 넣은 묶음을 이 PC에서 Docker(`install.sh`)와 Apptainer(`singularity.sh start`)로 확인(10-09). 실제 오프라인 서버에서는 아직 |
 | 내장 PDF 엔진 | conformance 시험 21개(ToolPDF 답과 비교), 앱 시험 전체를 `RAG_PDF_ENGINE=local`로, 공개 문서 10종 비교(7절) | ToolPDF 없는 묶음을 WSL Docker에 `install.sh`로 설치해 PDF·docx(나눔 글꼴)·암호 PDF 처리(10-10). Windows `start_local.bat local`. 실제 운영 문서와 검색 품질 비교는 아직 |
 | Windows PC (Docker 없이) | `setup_local.bat`, `start_local.bat`, `stop_local.bat` | Windows용 Ollama 0.40.1(`qwen2.5vl:7b`, `bge-m3`)로 `docs/WINDOWS.md` 3절 순서 그대로 확인. 한국어 실제 스캔 OCR까지(10-09) |
@@ -293,6 +294,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [ ] 짧은 청크의 임베딩 검색이 약하다. 합친 LIS3DH WHO_AM_I 청크(54토큰)도 한국어 질문에 dense 20위(BM25 1위)라 Open WebUI가 TOP_K 10에서도 못 가져왔다. 후보: 청크 임베딩에 문서 제목·절 경로를 붙여 넣기(contextual chunk), 질문을 문서 언어로 바꿔 한 번 더 검색, 절 단위로 짧은 절끼리 합치기.
 - [ ] 절의 첫 청크만 검색되고 정답이 두 번째 청크에 있는 경우(MPU-6000 I2C 주소 "b110100X"). 후보: 검색된 청크의 같은 절 이웃 청크를 함께 넘기기(Open WebUI 쪽에서는 어려우므로 IngestLens 검색 API 쪽).
 - [x] PDF 엔진 인터페이스와 내장 엔진(2026-10-10, `docs/ENGINE_PLAN.md` 9절). 남은 것: 두 엔진으로 검색 품질 비교(`eval_retrieval.py`, 실제 운영 문서), 큰 문서 속도(`bench_large.py`, 내장 엔진은 앱 프로세스의 스레드에서 돈다), 오래된 OCR 글자층에서 제목 조각이 많은 문제(내장 엔진).
+- [ ] 바이너리 도구: Open WebUI **화면**에서 도구 실행까지 이어지는 흐름 확인(API로는 등록·첨부·모델의 도구 호출까지, 실행 루프는 같은 도구로 Ollama `gemma4:12b`에서 확인), 운영 vLLM 모델의 도구 호출 설정(`--enable-auto-tool-choice`, 모델별 `--tool-call-parser`), 길이가 바뀌는 레코드와 압축 데이터는 명세로 표현 못 함, 실제 장비 로그로 개요의 레코드·헤더 추정이 맞는지.
 - [x] 암호 PDF(2026-10-10): 업로드의 `password` 폼 필드, `PUT /api/documents/{id}/password`, 실패한 실행 화면의 입력란. 두 엔진 모두. 비밀번호는 DB(`documents.password`)에 평문으로 저장된다(쪽 이미지를 나중에 그릴 때도 필요). 문서 내용도 이미 DB와 벡터에 평문으로 있으므로 같은 보호 수준이다. Open WebUI 로더로는 비밀번호를 넘길 수 없다.
 - [x] 배포 묶음에 ToolPDF 0.2.0 넣기(2026-10-10): ToolPDF `ea72cd3`으로 `release/toolpdf-0.2.0`을 만들고 묶음 `ingestlens-20261010`(Docker + `--singularity`)을 다시 만들었다. 2026-10-15에 텍스트·CSV 처리를 넣어 `ingestlens-20261015`로 다시 만들었다. 오프라인 서버의 묶음은 이것으로 바꾼다.
 - [ ] 로컬 Docker 스택의 reranker는 CPU라 합친(커진) 청크 20개 rerank가 60초를 넘겨 시간 초과(`models.docker.yaml` `reranker.timeout_s`). 운영은 GPU 모델 서버라 해당 없음. 로컬에서 후보를 늘려 잴 때는 timeout을 올린다.
@@ -322,6 +324,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 | 2026-10-04 | 합성 세트 검색 22문항, Ollama `bge-m3` + `qwen2.5vl:7b`, reranker `bge-reranker-v2-m3`(CPU). RTX 5070 Ti, Docker | dense hit@1 95%, hybrid 82% (paraphrase 50%), hybrid+rerank 100% | `evals/reports/retrieval_synthetic_ollama.md`. 실제 임베딩에서는 BM25가 paraphrase를 끌어내려 hybrid가 dense보다 낮다. 가중치 조정 후보 |
 | 2026-10-04 | 3페이지 PDF(텍스트, 스캔, 차트 그림), 같은 스택 | 전체 60s(모델 첫 로드 포함), 그림 설명 1회 8.0s, rerank 15개 1.6~2.2s(CPU) | manual.pdf 12p는 32s |
 | 2026-10-10 | 두 PDF 엔진 비교: ToolPDF 0.2.0(PyMuPDF 1.28.2, 프로세스 4개) 대 내장 엔진(pypdfium2 5.13.0, pdfplumber 0.11.10), 공개 문서 10종 50쪽(`evals/samples`), 같은 규칙, VLM 없이 | 쪽 라벨 50/50 같음, 표 20 대 20, 그림 영역 40 대 40, 글자 수 대부분 ±3%. 문서당 쪽 분석 + 추출 0.3~3.4초 대 0.1~2.8초 | 다른 점: 오래된 스캔의 OCR 글자층(NACA) 제목 149 대 588. 맞추느라 바꾼 것(선 개수를 PDFium 경로 수로, 열린 표 테두리 한도 400pt, 글자 없는 격자 버림, `line_margin` 0.8)은 `docs/ENGINE_PLAN.md` 9절 |
+| 2026-10-16 | 바이너리 도구, 합성 장비 로그(헤더 64 + 32바이트 레코드 4,000개), Open WebUI 0.11.3 도구 서버 등록, 같은 도구 정의로 Ollama `gemma4:12b`(RTX 5070 Ti, GPU에 이 모델만) 도구 호출 루프 | 개요가 레코드 32·헤더 64·시각/온도/습도/순번 위치를 맞게 추정(10만 레코드 3.2MB 분석 0.2초). 모델이 6번 호출(목록, 개요, 명세 422 오류 → 수정, 검증, 조회)로 63초에 명세 확정, 1532번 레코드 시각·온도와 헤더 장치 이름 정답. 해석 0.03초, JSON 내보내기 10만 레코드 21MB 1초 | GPU를 Docker Ollama와 나눠 쓸 때는 같은 루프가 329초에 빈 답으로 끝남. 작은 `gemma4:e4b`는 첨부 개요는 읽고 첫 도구 호출까지 확인 |
 | 2026-10-15 | 배포 묶음 `ingestlens-20261015`(`--singularity`, 앱 커밋 `762395a`, ToolPDF 0.2.0 `ea72cd3`), WSL Docker Engine에 묶음만으로 설치(포트 8125), 모델 주소 비움 | 묶음 4,505MB. 상태: PDF 엔진 "auto: ToolPDF 0.2.0 · 옵션 지원 · 공유 폴더" 정상. sample.pdf(청크 4), CP949 한글 로그(`text_render` cp949, 청크 6), 확장자 없는 `CHANGELOG`(`text_render` utf-8, 청크 1), sales.csv(`csv_table`, 청킹 `sheets`, 청크 3개 모두 머리 행) 처리 성공 | Singularity 실행은 다시 시험하지 않음 |
 | 2026-10-10 | 배포 묶음 `ingestlens-20261010`(`--singularity`, 앱 커밋 `0a2c1cb`, ToolPDF 0.2.0 `ea72cd3`), WSL Docker Engine에 묶음만으로 설치(포트 8124), 모델 주소 비움 | 묶음 4,505MB(앱 sif 153MB, 모델 서버 sif 3,928MB, ToolPDF 폴더: Docker 이미지 93MB·sif 93MB·PyMuPDF 소스 84MB). 상태: PDF 엔진 "auto: ToolPDF 0.2.0 · 옵션 지원 · 공유 폴더" 정상. sample.pdf, docx(제목 5개), 암호 PDF(비밀번호와 함께 업로드) 처리 성공, 근거 `pdf_engine_auto`로 ToolPDF | 첫 빌드는 torch 다운로드가 네트워크 시간 초과로 실패, 다시 실행해 통과. Singularity 실행은 이번에 다시 시험하지 않음 |
 | 2026-10-10 | ToolPDF 없는 배포 묶음(`--pdf-engine local`), WSL Docker Engine에 묶음만으로 설치(포트 8123), 모델 주소 비움 | 묶음 154MB(앱 이미지만). 상태: PDF 엔진(내장) 정상. sample.pdf 6쪽(라벨 ToolPDF와 같음), docx(제목 5개, 나눔 글꼴로 렌더), 암호 PDF(비밀번호와 함께 업로드) 처리 성공 | `models.yaml`의 VLM 주소 자리표시(`<VLM 서버 주소>`)를 그대로 두면 실행이 InvalidURL로 실패한다(설치 때 경고는 나옴) |

@@ -64,6 +64,7 @@ start_app() {
     --bind "$INGESTLENS_DATA_DIR:/data" --bind "$MODELS_YAML:/config/models.yaml:ro" \
     --env RAG_DATA_DIR=/data --env RAG_SETTINGS_FILE=/data/settings.local.yaml \
     --env RAG_MODELS_FILE=/config/models.yaml --env "RAG_API_KEY=${RAG_API_KEY:-}" --env "RAG_PDF_ENGINE=${RAG_PDF_ENGINE:-auto}" \
+    --env "RAG_PUBLIC_URL=${RAG_PUBLIC_URL:-}" \
     --env "RAG_TOOLPDF_URL=http://127.0.0.1:${TOOLPDF_PORT:-8095}" --env RAG_TOOLPDF_TRANSFER=shared \
     --env "RAG_TOOLPDF_API_KEY=${TOOLPDF_API_KEY:-}" \
     --env "INGESTLENS_PORT=${INGESTLENS_PORT:-8000}" "$APP_SIF" >> app.log 2>&1 &

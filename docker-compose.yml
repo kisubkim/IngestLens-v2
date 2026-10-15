@@ -86,6 +86,8 @@ services:
       dockerfile: docker/app.Dockerfile
     environment:
       RAG_MODELS_FILE: /app/config/models.docker.yaml
+      # 바이너리 도구가 돌려주는 JSON 내려받기 링크의 주소(브라우저에서 열리는 주소). Open WebUI는 app:8000으로 부른다
+      RAG_PUBLIC_URL: ${RAG_PUBLIC_URL:-http://localhost:8000}
       RAG_TOOLPDF_URL: http://toolpdf:8095
       RAG_TOOLPDF_TRANSFER: shared
       # 이 PC의 브라우저 요청은 Docker 브리지 게이트웨이(172.x) 주소로 들어온다. 포트를 127.0.0.1에만 열었으므로

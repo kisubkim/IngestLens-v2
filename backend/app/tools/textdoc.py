@@ -75,8 +75,10 @@ def _wrap(line: str, font: str, size: float, width: float) -> list[str]:
     return out
 
 
-def text_to_pdf(src: Path, out: Path, encoding: str, font_size: float, max_chars: int, font_path: str = "") -> dict:
-    """Render the text file as A4 pages. Returns {encoding, lines, chars, truncated, pages, font}."""
+def text_to_pdf(src: Path, out: Path, encoding: str, font_size: float, max_chars: int, font_path: str = "",
+                monospace: bool = False) -> dict:
+    """Render the text file as A4 pages. Returns {encoding, lines, chars, truncated, pages, font}.
+    monospace: ReportLab's built-in Courier (ASCII only, keeps hex dumps aligned) instead of the CJK font."""
     text = Path(src).read_bytes().decode(encoding, errors="replace")
     truncated = len(text) > max_chars
     if truncated:
@@ -86,7 +88,7 @@ def text_to_pdf(src: Path, out: Path, encoding: str, font_size: float, max_chars
     if lines and lines[-1] == "":
         lines.pop()
 
-    font = cjk_font(font_path)
+    font = {"name": "Courier", "source": "ReportLab Courier"} if monospace else cjk_font(font_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     c = canvas.Canvas(str(out), pagesize=A4, pageCompression=1)
     c.setTitle(Path(src).name)

@@ -57,6 +57,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 | PDF | 그대로 쓴다 | `magic_pdf` |
 | 이미지(png, jpg, tif 등) | 한 쪽짜리 PDF로 감싼다 | `image_wrap` |
 | 텍스트(txt, log, md, csv, 확장자 없는 파일 등) | 내용이 글자로 읽히면(UTF-8, BOM 있는 UTF-16, CP949) 줄을 그대로 A4 쪽에 그린다. 긴 줄은 다음 줄로 넘긴다. 확장자는 보지 않고 내용으로 판단한다 | `text_render` (너무 길면 `text_truncated`) |
+| 그 밖의 바이너리(장비 로그 등, 확장자 무관) | 형식 분석용 **개요**를 만들어 쪽으로 그린다(고정폭 글꼴): 크기·엔트로피, 반복 간격으로 찾은 레코드 길이, 고정 바이트로 찾은 헤더 크기, 레코드 안의 고정 바이트·카운터·시각·실수 후보, 표본 레코드와 헤더 hex, 문자열. 원본은 그대로 두고 바이너리 도구(`/api/tools/binary`)가 명세로 해석한다. 엔트로피가 7.5 이상이면 압축·암호화 경고 | `binary_overview` |
 | CSV, TSV | 표이면(2열 이상, `text.csv_max_columns`(20) 이하, 행의 90% 이상이 같은 칸 수) 한 시트짜리 엑셀로 바꿔 엑셀처럼 그린다: 24행마다 한 쪽, 쪽마다 머리 행 반복, 청킹은 쪽 단위(`sheets`). 그래서 어느 청크에도 열 이름이 붙는다. 표가 아니면(열이 너무 많음, 칸 수가 들쭉날쭉) 위의 텍스트처럼 그린다 | `csv_table` (아니면 `csv_as_text` 다음 `text_render`, 행이 많으면 `csv_truncated`) |
 | 암호가 걸린 PDF | 문서에 저장된 비밀번호로 연다 | `pdf_password` |
 | docx, pptx, xlsx | 아래 규칙으로 LibreOffice 또는 엔진 자체 렌더링 | `office_convert` / `office_native` |
@@ -224,6 +225,7 @@ VLM에 보내는 질문 형식(프롬프트)과 그 답을 읽는 규칙은 `bac
 | `pdf_password` | intake | 암호 PDF를 문서의 비밀번호로 열었음 |
 | `magic_pdf`, `image_wrap`, `text_render`, `office_convert`, `office_native` | intake | 변환 방법 |
 | `text_truncated` | intake | 텍스트가 `text.max_chars`(기본 500만 자)보다 길어 뒤를 잘라냈음 |
+| `binary_overview` | intake | 바이너리 파일의 개요를 만들었음(추정 레코드 길이·헤더 크기는 inputs) |
 | `csv_table`, `csv_as_text`, `csv_truncated` | intake | CSV를 표(엑셀 렌더링)로 그렸음, 표가 아니라 글자로 그렸음(이유 포함), `office.xlsx_max_rows`를 넘어 행을 잘랐음 |
 | 규칙 `id`(`scanned` 등), `fallback_mixed` | profile | 쪽 라벨(쪽 분석 화면에 쪽마다) |
 | `vlm_review` | profile | VLM 2차 판단(유지 또는 변경) |

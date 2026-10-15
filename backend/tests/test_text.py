@@ -28,7 +28,7 @@ def test_detect_text_by_content(tmp_path):
     assert detect(_write(tmp_path / "server.conf", "port = 8000\n"))["format"] == "text"
     binary = tmp_path / "blob"
     binary.write_bytes(bytes(range(256)) * 10)
-    assert detect(binary)["format"] == "unknown"
+    assert detect(binary)["format"] == "binary"
     # a real format keeps winning over the text sniff
     assert detect(Path(__file__).parent / "fixtures" / "sample.pdf")["format"] == "pdf"
 
@@ -67,12 +67,11 @@ def test_ingest_log_and_extensionless_file(tmp_path):
             assert ("센서 7번" in text) if enc == "cp949" else ("암호 PDF" in text)
 
 
-def test_binary_without_extension_is_refused(tmp_path):
+def test_binary_without_extension_is_not_text(tmp_path):
+    """Binary content is not mistaken for text; it gets the binary overview (test_binary.py)."""
     blob = tmp_path / "firmware"
     blob.write_bytes(bytes(range(256)) * 50)
-    with TestClient(app) as client:
-        run = _run(client, blob)
-    assert run["status"] == "failed" and "Unsupported format" in run["error"]
+    assert detect(blob)["format"] == "binary"
 
 
 # ---------- CSV / TSV ----------
