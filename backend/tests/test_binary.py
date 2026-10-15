@@ -108,6 +108,7 @@ def test_tools_api_end_to_end(tmp_path):
 
         ex = client.post(f"{T}/export", json={"document": doc_id, "spec": SPEC}).json()
         assert ex["records"] == 3000 and "/api/tools/binary/exports/" in ex["download_url"]
+        assert ex["download_url"].endswith("save_as=plant_A.json")  # underscores in the name stay
         path = ex["download_url"].split("://", 1)[1].split("/", 1)[1]
         body = client.get("/" + path).json()
         assert len(body["records"]) == 3000 and body["records"][10]["seq"] == 10

@@ -8,6 +8,7 @@ is set; export downloads are plain links (the name is a hash, like the page imag
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -22,6 +23,8 @@ from ..tools import binspec, binview
 from .auth import require_key
 
 READ_MAX = 4096
+# Open WebUI stores uploads as "<uuid4>_<original name>"; the download keeps the original name.
+OPENWEBUI_PREFIX = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(?=.)", re.I)
 RECORDS_MAX = 200
 SPEC_DOC = "Format spec as YAML text.\n" + binview.SPEC_HELP
 
@@ -141,7 +144,7 @@ def export(req: SpecReq, request: Request) -> dict:
     res = binspec.export_json(settings.resolve(d.path), spec, out) if not out.exists() else {
         "records": binspec.layout(spec, d.size)["count"], "bytes": out.stat().st_size}
     base = (settings.public_url or str(request.base_url).replace("/api/tools/binary/", "/")).rstrip("/")
-    stem = Path(d.filename).stem.split("_", 1)[-1] if "_" in d.filename else Path(d.filename).stem
+    stem = OPENWEBUI_PREFIX.sub("", Path(d.filename).stem)
     return {"document_id": d.id, **res, "download_url": f"{base}/api/tools/binary/exports/{d.id}/{name}?save_as={stem}.json"}
 
 
