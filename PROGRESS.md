@@ -356,6 +356,7 @@
 - **Open WebUI:** 시험 스크립트(`scripts/webui_test.sh`)가 `TOOL_SERVER_CONNECTIONS`로 도구 서버를 등록한다. 첨부하면 개요가 들어가고 모델(`gemma4:e4b`)이 `binary_overview`를 부르는 것까지 API로 확인했다. API 호출에서는 Open WebUI가 도구를 실행하지 않아(화면의 대화 흐름에서 실행), 같은 도구 정의로 도구 실행 루프를 스크립트로 돌려 Ollama `gemma4:12b`가 6번 호출로 명세를 확정하고 값을 맞게 답하는 것을 확인했다(HANDOFF 7절).
 - **시험:** `tests/test_binary.py` 7개(개요 추정, 무작위 바이트, 수집, 문서 로더, 업로드 한도, 도구 API 전체, 키), 합성 로그 `tests/binfixtures.py`(헤더 64 + 32바이트 레코드, 명세 `SPEC`). 텍스트·수집 시험의 "바이너리는 실패" 기대를 바꿨다. 전체 128개, 세 설정.
 - **남은 것:** Open WebUI 화면에서 실제 실행 확인, 운영 vLLM의 도구 호출 설정, 가변 길이 레코드·압축 데이터, 실제 장비 로그로 추정 정확도 확인. 가이드는 `deploy/OPENWEBUI.md` 11절.
+- **묶음 `ingestlens-20261016`**: 앱 `acfadf3`(ToolPDF 0.2.0), 4,505MB. 묶음 설치 시험에서 내보내기 파일 이름이 첫 `_` 앞까지 잘리는 버그(`plant_C.dat` → `C.json`)를 찾아 Open WebUI의 `<uuid>_` 접두어만 지우도록 고치고 다시 만들었다. WSL Docker에 설치해 개요, 도구 6개, 해석·조회·내보내기·내려받기, 키 검사를 확인했다. 오프라인 서버에는 이 묶음을 반입한다.
 
 ### 2-31. 텍스트 파일: txt, log, 확장자 없는 파일 (10-15)
 
