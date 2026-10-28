@@ -111,6 +111,25 @@ VL 모델을 바꿀 때 같은 문서로 OCR, 표, 그림 설명 품질을 재�
 - 문서를 추가하려면 재배포 가능한 라이선스의 원본에서 페이지를 발췌한 PDF를 `evals/samples/`에 넣고, `SOURCES.md`에 원본, 사용한 페이지, 변경 내용, 출처 표시를 적은 뒤, `cases.json`에 기대값을 손으로 적는다. 기대값은 페이지 이미지를 직접 보고 적는다.
 - 결과 파일의 `dataset_version`은 기대값과 ToolPDF가 그린 40dpi 페이지 이미지로 계산한다. 문서나 기대값이 바뀌면 값이 달라지고, 화면은 버전이 다른 결과를 섞어 고를 때 경고한다.
 
+## 3-1. VLM 모델 바꾸기 전 점검과 비교
+
+다른 VLM(예: DeepSeek V4.1 Flash)이 문서 이미지를 Qwen3-VL만큼 읽는지 비교하는 순서:
+
+1. **이미지를 실제로 읽는지 점검:** `python scripts/check_vlm.py --base-url http://<vLLM>/v1 --model <이름>`. 한국어 문장, 번호, 작은 표가 든 그림을 보내 번호와 온도를 맞히는지 본다. 텍스트 전용 모델이거나 vLLM이 이미지 입력을 켜지 않고 떠 있으면 실패한다.
+2. **models.yaml을 모델마다 하나씩:** `config/models.yaml`을 `config/models.qwen3vl.local.yaml`, `config/models.deepseek.local.yaml`로 복사하고(`*.local.yaml`은 git에 안 들어감) `vlm.base_url`, `vlm.model`만 다르게 둔다. 큰 모델이면 `vlm.timeout_s`를 늘린다.
+3. **같은 세트로 평가:** 공개 문서 10종으로 둘 다 돌린다.
+   ```bash
+   python scripts/eval_vlm.py --cases evals/samples/cases.json --models config/models.qwen3vl.local.yaml --name "Qwen3-VL" --notes "<GPU, 양자화>"
+   python scripts/eval_vlm.py --cases evals/samples/cases.json --models config/models.deepseek.local.yaml --name "DeepSeek V4.1 Flash 1017" --notes "<GPU>"
+   ```
+4. **비교 화면** `/#evals`에서 OCR, 표, 차트, 그림 설명 점수와 쪽당 시간을 나란히 본다. 회사 문서로도 보려면 그 문서와 기대값을 별도 세트로 만든다(공개 저장소에는 넣지 않는다).
+
+판단할 때: 수집은 쪽마다 VLM을 부르므로 모델 크기가 수집 시간에 그대로 들어간다. 점수가 비슷하면 수집은 작은 VL 모델, 채팅 답변은 큰 모델로 나누는 것이 낫다.
+
+## 3-2. 임베딩 모델 비교
+
+같은 세트로 `--models`만 바꿔 `eval_retrieval.py`를 돌린다. 질의·문서 지시문이 필요한 모델은 `embedding.query_prefix`/`document_prefix`를 넣은 설정과 뺀 설정을 둘 다 재 본다. 2026-10-28 bge-m3와 EmbeddingGemma 2 비교는 `docs/EMBEDDING_MODELS.md` 7절.
+
 ## 4. 튜닝 순서
 
 1. 실제 문서 5~20개를 고른다. 형식과 유형이 골고루 섞이게 한다.

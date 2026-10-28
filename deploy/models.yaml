@@ -7,6 +7,13 @@ embedding:
   api_key: EMPTY                                   # model-server.env 의 API_KEY 를 정했다면 같은 값
   model: bge-m3                                    # model-server.env 의 EMBED_NAME 과 같아야 한다
   dim: 1024
+  # 질의·문서 지시문이 필요한 모델(EmbeddingGemma 2, e5, Qwen3-Embedding)만 쓴다. bge-m3는 비워 둔다.
+  # {title}은 청크의 절 제목(없으면 none)으로 바뀐다. 예: EmbeddingGemma 2
+  #   query_prefix: "task: search result | query: "
+  #   document_prefix: "title: {title} | text: "
+  query_prefix: ""
+  document_prefix: ""
+  # dimensions: 256       # Matryoshka 모델(EmbeddingGemma 2: 768/512/256/128)을 짧은 벡터로 쓸 때만
   max_tokens: 8192
   batch_size: 32
 

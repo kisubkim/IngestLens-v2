@@ -188,7 +188,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 
 ## 7. ⑥ embed: 임베딩
 
-- `models.yaml` `embedding.base_url`이 있으면 그 모델로 임베딩한다(`configured_endpoint`).
+- `models.yaml` `embedding.base_url`이 있으면 그 모델로 임베딩한다(`configured_endpoint`). 모델이 지시문을 요구하면(EmbeddingGemma 2, e5) `query_prefix`/`document_prefix`를 붙인다. 문서 지시문의 `{title}`은 청크의 절 제목이다. 쓴 지시문은 근거와 실행 요약에 남고, 그 실행을 검색할 때는 색인할 때의 질의 지시문을 그대로 쓴다.
 - 없으면 시험용 `dev-hash`(글자 3개 묶음 해시)로 대체한다(`embedding_not_configured`, 신뢰도 0.2). 키워드가 겹치는 정도만 반영하므로 의미 검색은 되지 않는다.
 - Qdrant 컬렉션은 모델 이름과 차원별로 따로 둔다. 같은 문서를 다시 실행하면 그 문서의 이전 벡터를 지우고 새로 넣는다(검색은 문서당 최신 실행 하나).
 

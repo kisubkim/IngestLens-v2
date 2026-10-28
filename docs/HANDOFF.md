@@ -25,6 +25,7 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| 임베딩 지시문과 모델 비교 준비 (10-28) | 완료 | `embedding.query_prefix`/`document_prefix`/`dimensions`, 실행이 색인된 질의 지시문으로 검색, 모델 서버의 EmbeddingGemma 2(sentence-transformers, bfloat16), Open WebUI 지시문 설정, VLM 점검 스크립트 `check_vlm.py` |
 | 바이너리 형식 분석 (10-16) | 완료 | 장비 로그 등 바이너리를 받아 개요(레코드 길이·헤더 추정, 필드 후보, hex, 문자열)를 넣고, Open WebUI 도구 서버(`/api/tools/binary`)로 LLM이 형식 명세를 써서 파일 전체를 해석·조회·JSON으로 내보냄. 업로드 한도 `RAG_MAX_UPLOAD_MB` |
 | 텍스트 파일 (10-15) | 완료 | txt, log, 확장자 없는 파일 등 내용이 글자인 파일을 A4 쪽으로 그려 처리(`tools/textdoc.py`, 근거 `text_render`). CSV·TSV는 표이면 엑셀처럼 그려 청크마다 머리 행(`csv_table`). 업로드 화면도 받음 |
 | PDF 엔진 인터페이스와 내장 엔진 (10-10) | 완료 | ToolPDF 0.2.0 옵션 연결, `PdfEngine` 인터페이스(`backend/app/engines/`), 내장 엔진, `RAG_PDF_ENGINE=auto/toolpdf/local`, 암호 PDF(업로드·나중에 입력), 두 엔진 conformance 시험, ToolPDF 없는 배포 묶음(`--pdf-engine local`)과 `start_local.bat local` |
@@ -306,7 +307,9 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 **P2: 기능과 확장**
 - [ ] 모든 문서를 대상으로 하는 검색 API와 Open WebUI 도구 연결. 지금 `POST /api/search`는 문서 하나(실행 하나) 안에서만 검색한다. LLM이 IngestLens를 직접 검색하게 하려면 필요하다(`deploy/OPENWEBUI.md` 9절).
 - [ ] 화면에서 버튼이 꺼진 이유(바꾼 값 없음, 관리자 키 필요)를 표시한다. 사용자가 저장 위치 설정의 저장 버튼이 왜 꺼져 있는지 헷갈려 했다.
-- [ ] 임베딩 질의·문서 접두어(`query_prefix`/`document_prefix`)와 차원 축소 지원. e5, Qwen3-Embedding으로 바꾸려면 필요하다(`docs/EMBEDDING_MODELS.md` 4절).
+- [x] 임베딩 질의·문서 접두어(`query_prefix`/`document_prefix`, `{title}`)와 차원 축소(`dimensions`) 지원(2026-10-28). EmbeddingGemma 2를 모델 서버로 띄우는 것까지 확인(`docs/EMBEDDING_MODELS.md` 7절). 남은 것: 운영 문서로 bge-m3와 비교, 운영 GPU에서 bfloat16으로 띄우기.
+- [ ] 운영 환경(2026-10-28 사용자 확인: vLLM 0.32.0, Open WebUI 0.12.3)에서 확인: Open WebUI 0.12.3의 소스에서 문서 로더(`PUT /process`, `X-Filename`), 청크 설정, 임베딩 지시문, 도구 서버, 외부 reranker 설정이 0.11.3과 같은 것은 확인했다. 실제 화면(문서 첨부, 쪽 이미지 필터, 바이너리 도구 실행)은 0.12.3에서 아직 시험하지 않았다. vLLM 0.32.0은 EmbeddingGemma 2를 지원한다(`docs/EMBEDDING_MODELS.md` 7절의 명령, `--dtype bfloat16`).
+- [ ] VLM 바꾸기 검토(DeepSeek V4.1 Flash 1017 등): `scripts/check_vlm.py`로 이미지 입력을 점검하고 `eval_vlm.py`로 Qwen3-VL과 비교(`evals/README.md` 3-1). 문서·OCR 성능의 공개 수치는 없다.
 - [ ] 검색 결과로 LLM 답변 생성과 인용(텍스트 LLM endpoint 추가)
 - [ ] 여러 서버 인스턴스로 확장: Qdrant 서버(`RAG_QDRANT_URL`), PostgreSQL(`RAG_DB_URL`), 작업 큐(arq 등)
 - [ ] 임베딩 2D 투영을 UMAP으로 바꾸고 겹친 점을 구분한다(현재 PCA).
@@ -324,6 +327,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 | 2026-10-04 | 합성 세트 검색 22문항, Ollama `bge-m3` + `qwen2.5vl:7b`, reranker `bge-reranker-v2-m3`(CPU). RTX 5070 Ti, Docker | dense hit@1 95%, hybrid 82% (paraphrase 50%), hybrid+rerank 100% | `evals/reports/retrieval_synthetic_ollama.md`. 실제 임베딩에서는 BM25가 paraphrase를 끌어내려 hybrid가 dense보다 낮다. 가중치 조정 후보 |
 | 2026-10-04 | 3페이지 PDF(텍스트, 스캔, 차트 그림), 같은 스택 | 전체 60s(모델 첫 로드 포함), 그림 설명 1회 8.0s, rerank 15개 1.6~2.2s(CPU) | manual.pdf 12p는 32s |
 | 2026-10-10 | 두 PDF 엔진 비교: ToolPDF 0.2.0(PyMuPDF 1.28.2, 프로세스 4개) 대 내장 엔진(pypdfium2 5.13.0, pdfplumber 0.11.10), 공개 문서 10종 50쪽(`evals/samples`), 같은 규칙, VLM 없이 | 쪽 라벨 50/50 같음, 표 20 대 20, 그림 영역 40 대 40, 글자 수 대부분 ±3%. 문서당 쪽 분석 + 추출 0.3~3.4초 대 0.1~2.8초 | 다른 점: 오래된 스캔의 OCR 글자층(NACA) 제목 149 대 588. 맞추느라 바꾼 것(선 개수를 PDFium 경로 수로, 열린 표 테두리 한도 400pt, 글자 없는 격자 버림, `line_margin` 0.8)은 `docs/ENGINE_PLAN.md` 9절 |
+| 2026-10-28 | 합성 검색 세트 22문항, 내장 PDF 엔진, rerank 없음. bge-m3(Windows Ollama) 대 EmbeddingGemma 2(모델 서버 CPU float32, 지시문 있음·없음) | dense hit@1 95% / **100%** / 91%, paraphrase hit@1 88% / **100%** / 75%, hybrid hit@1 82% / **91%** / 82% | 지시문 없이는 bge-m3보다 낫지 않다. 표본이 작다. `evals/reports/retrieval_synthetic_*_20261028.md`, `docs/EMBEDDING_MODELS.md` 7절 |
 | 2026-10-16 | 배포 묶음 `ingestlens-20261016`(`--singularity`, 앱 커밋 `acfadf3`, ToolPDF 0.2.0 `ea72cd3`), WSL Docker Engine에 묶음만으로 설치(포트 8126), 모델 주소 비움 | 묶음 4,505MB. 상태: PDF 엔진 ToolPDF 0.2.0 옵션 지원 정상. 합성 장비 로그 2만 레코드: 개요가 레코드 32·헤더 64, 도구 6개 응답, 해석 경고 없음·헤더 장치 이름, 1532번 레코드 조회, JSON 내보내기 3.8MB와 내려받기(`plant_C.json`), 키 없으면 401 | 첫 20261016 묶음(`93d4675`)은 내려받기 이름이 `C.json`으로 잘리는 버그가 있어 `acfadf3`으로 고쳐 다시 만듦 |
 | 2026-10-16 | 바이너리 도구, 합성 장비 로그(헤더 64 + 32바이트 레코드 4,000개), Open WebUI 0.11.3 도구 서버 등록, 같은 도구 정의로 Ollama `gemma4:12b`(RTX 5070 Ti, GPU에 이 모델만) 도구 호출 루프 | 개요가 레코드 32·헤더 64·시각/온도/습도/순번 위치를 맞게 추정(10만 레코드 3.2MB 분석 0.2초). 모델이 6번 호출(목록, 개요, 명세 422 오류 → 수정, 검증, 조회)로 63초에 명세 확정, 1532번 레코드 시각·온도와 헤더 장치 이름 정답. 해석 0.03초, JSON 내보내기 10만 레코드 21MB 1초 | GPU를 Docker Ollama와 나눠 쓸 때는 같은 루프가 329초에 빈 답으로 끝남. 작은 `gemma4:e4b`는 첨부 개요는 읽고 첫 도구 호출까지 확인 |
 | 2026-10-15 | 배포 묶음 `ingestlens-20261015`(`--singularity`, 앱 커밋 `762395a`, ToolPDF 0.2.0 `ea72cd3`), WSL Docker Engine에 묶음만으로 설치(포트 8125), 모델 주소 비움 | 묶음 4,505MB. 상태: PDF 엔진 "auto: ToolPDF 0.2.0 · 옵션 지원 · 공유 폴더" 정상. sample.pdf(청크 4), CP949 한글 로그(`text_render` cp949, 청크 6), 확장자 없는 `CHANGELOG`(`text_render` utf-8, 청크 1), sales.csv(`csv_table`, 청킹 `sheets`, 청크 3개 모두 머리 행) 처리 성공 | Singularity 실행은 다시 시험하지 않음 |

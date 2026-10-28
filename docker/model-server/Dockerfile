@@ -11,8 +11,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HOME=/models \
     REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
     MS_DEVICE=cpu MS_PORT=8080
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
- && pip install --no-cache-dir transformers fastapi "uvicorn[standard]"
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir transformers "sentence-transformers>=6.1" pillow fastapi "uvicorn[standard]"
 WORKDIR /srv
 COPY model-server/server.py .
 EXPOSE 8080

@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-10-16
+최종 갱신: 2026-10-28
 
 전체 상태, 설계 이유, 운영 절차는 `docs/HANDOFF.md`에 있다. 이 문서는 2026-10-04부터 한 작업의 진행 상황을 정리한다.
 - 10-04 오전: 로컬 실제 모델 검증, VLM 평가 체계
@@ -20,6 +20,7 @@
 - 10-10: PDF 엔진 인터페이스와 내장 엔진 구현(`RAG_PDF_ENGINE=auto`), 암호 PDF, ToolPDF 없는 배포 형태
 - 10-15: txt, log, 확장자 없는 텍스트 파일 처리, CSV를 표로
 - 10-16: 바이너리(장비 로그) 형식 분석: 개요, 형식 명세로 해석, Open WebUI 도구 서버
+- 10-28: 임베딩 지시문(EmbeddingGemma 2 준비, bge-m3와 비교), VLM 점검 스크립트와 비교 순서
 
 ## 1. 한눈에 보기
 
@@ -344,6 +345,17 @@
   - 로컬 CPU reranker는 커진 청크 20개를 60초 안에 rerank하지 못해 시간 초과가 났다(운영 GPU와 무관).
 - `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
 - Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
+
+### 2-33. 임베딩 지시문과 EmbeddingGemma 2, VLM 비교 준비 (10-28)
+
+사용자 질문에서 시작: Open WebUI가 그림을 모델에 어떻게 넘기는지, DeepSeek V4.1 Flash 1017로 바로 보내는 게 나은지, 새 Gemma 임베딩 모델.
+
+- **확인한 것:** Open WebUI는 채팅에 첨부한 이미지 파일만 base64로 모델에 보내고, PDF 같은 문서는 텍스트만 뽑아 RAG로 쓴다. IngestLens 쪽 이미지 필터는 답변 뒤(`outlet`)에만 동작해 모델에 이미지를 보내지 않는다. 검색은 글로 하므로 수집 때 VL이 그림을 글로 바꾸는 단계는 어떤 채팅 모델을 쓰든 필요하다. DeepSeek V4.1 Flash 1017(2026-10-17, MIT, 텍스트+이미지 입력, 1M 문맥)은 문서·OCR·차트 공개 수치가 없어 직접 재기로 했다.
+- **VLM 점검과 비교:** `scripts/check_vlm.py`가 한국어 문장·번호·표가 든 그림을 보내 모델이 이미지를 실제로 읽는지 본다(`qwen2.5vl:7b`로 통과 확인). 비교 순서는 `evals/README.md` 3-1(모델별 `*.local.yaml`, `eval_vlm.py`, 비교 화면).
+- **임베딩 지시문:** `models.yaml` `embedding.query_prefix`, `document_prefix`(`{title}` = 청크의 절 제목, 없으면 none), `dimensions`(Matryoshka). 임베딩 근거와 `summary.embed`에 기록하고, 검색은 그 실행이 색인된 질의 지시문을 쓴다(설정이 나중에 바뀌어도). 시험 `tests/test_embedding_prefix.py` 3개.
+- **EmbeddingGemma 2(google/embeddinggemma-2, 2026-10-06, Apache-2.0, 768차원):** 모델 서버가 Gemma 계열을 알아보고 sentence-transformers 방식과 bfloat16(GPU)으로 올린다(모델 카드: float16은 값이 소리 없이 틀림). `--embed-backend`, 요청의 `dimensions`. 모델 서버 이미지에 sentence-transformers, Pillow, torchvision 추가(텍스트만 써도 전처리기가 요구). 이 PC에서 CPU로 띄워 공식 `prompt_name` 결과와 코사인 0.999 이상 일치 확인.
+- **비교(합성 세트 22문항):** dense hit@1 bge-m3 95%, EmbeddingGemma 2 지시문 있음 100%, 없음 91%. hybrid 82% / 91% / 82%. 지시문이 성패를 가른다.
+- **Open WebUI:** 0.11.3 소스에서 `RAG_EMBEDDING_QUERY_PREFIX`, `RAG_EMBEDDING_CONTENT_PREFIX`(필드 이름 설정이 없으면 글 앞에 붙임)를 확인하고 `deploy/OPENWEBUI.md` 4-5에 적었다.
 
 ### 2-32. 바이너리(장비 로그) 형식 분석과 Open WebUI 도구 (10-16)
 

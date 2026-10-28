@@ -23,7 +23,10 @@ async def embed(state: PipelineState) -> dict:
     cfg = models_cfg()["embedding"]
     if emb.remote:
         record_decision(run_id, STEP, "embedding model", cfg["model"], rule_id="configured_endpoint",
-                        inputs={"base_url": cfg["base_url"], "max_tokens": cfg["max_tokens"]}, confidence=1.0)
+                        inputs={"base_url": cfg["base_url"], "max_tokens": cfg["max_tokens"], **emb.prefixes(),
+                                "dimensions": cfg.get("dimensions")}, confidence=1.0,
+                        reasoning="Prefixes are the model's query/document instructions from models.yaml (empty = none); "
+                                  "searches of this run use the same query prefix.")
     else:
         record_decision(run_id, STEP, "embedding model", "dev-hash", rule_id="embedding_not_configured",
                         alternatives=[{"choice": cfg["model"], "reason_rejected": "models.yaml embedding.base_url is empty"}],
@@ -39,7 +42,7 @@ async def embed(state: PipelineState) -> dict:
     name, norms = None, []
     for start in range(0, len(chunks), batch):
         part = chunks[start:start + batch]
-        vecs = await emb.embed([c[2] for c in part])
+        vecs = await emb.embed([c[2] for c in part], "document", [c[4] for c in part])
         if name is None:
             name = vectorstore.collection_name(emb.model, len(vecs[0]))
             await asyncio.to_thread(vectorstore.ensure_collection, name, len(vecs[0]))
@@ -56,6 +59,7 @@ async def embed(state: PipelineState) -> dict:
 
     secs = time.perf_counter() - t0
     stats = {"model": emb.model, "dim": emb.dim, "collection": name, "count": len(chunks), "seconds": round(secs, 2),
+             **(emb.prefixes() if emb.remote else {}),
              "chunks_per_s": round(len(chunks) / secs, 1) if secs else None}
     if norms:
         stats |= {"norm_min": round(min(norms), 4), "norm_avg": round(sum(norms) / len(norms), 4), "norm_max": round(max(norms), 4)}

@@ -1,4 +1,9 @@
-"""Embedding client. Uses the vLLM endpoint when configured, else a dev-only hash embedder."""
+"""Embedding client. Uses the vLLM endpoint when configured, else a dev-only hash embedder.
+
+Some models expect different instructions on queries and documents (EmbeddingGemma: "task: search result | query: "
+and "title: {title} | text: "; e5: "query: " / "passage: "). models.yaml embedding.query_prefix and
+document_prefix add them; {title} in the document prefix becomes the chunk's section ("none" without one).
+embedding.dimensions asks the server for shorter (Matryoshka) vectors."""
 
 import hashlib
 import math
@@ -18,9 +23,27 @@ class Embedder:
         self.dim = cfg["dim"]
         self._client = AsyncOpenAI(base_url=cfg["base_url"], api_key=cfg.get("api_key") or "EMPTY") if self.remote else None
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
+    def prefixes(self) -> dict:
+        return {"query_prefix": self.cfg.get("query_prefix") or "", "document_prefix": self.cfg.get("document_prefix") or ""}
+
+    def _with_prefix(self, texts: list[str], kind: str, titles: list[str | None] | None, query_prefix: str | None) -> list[str]:
+        if kind == "query":
+            p = (self.cfg.get("query_prefix") or "") if query_prefix is None else query_prefix
+            return [p + t for t in texts]
+        p = self.cfg.get("document_prefix") or ""
+        if not p:
+            return texts
+        titles = titles or [None] * len(texts)
+        return [p.replace("{title}", " ".join((title or "none").split())) + t for t, title in zip(texts, titles)]
+
+    async def embed(self, texts: list[str], kind: str = "document", titles: list[str | None] | None = None,
+                    query_prefix: str | None = None) -> list[list[float]]:
+        """kind: "document" (chunks; titles fill {title}) or "query". query_prefix: the one the index was built
+        with, when it differs from models.yaml now (see retriever)."""
         if self.remote:
-            resp = await self._client.embeddings.create(model=self.cfg["model"], input=texts)
+            extra = {"dimensions": int(self.cfg["dimensions"])} if self.cfg.get("dimensions") else {}
+            resp = await self._client.embeddings.create(model=self.cfg["model"],
+                                                        input=self._with_prefix(texts, kind, titles, query_prefix), **extra)
             vecs = [d.embedding for d in sorted(resp.data, key=lambda d: d.index)]
             self.dim = len(vecs[0])
             return vecs

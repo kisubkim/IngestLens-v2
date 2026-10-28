@@ -37,13 +37,16 @@ async def search(query: str, top_k: int = 5, doc_id: str | None = None, run_id: 
         return out
     with session() as s:
         chunks = {c.id: c for c in s.scalars(select(Chunk).where(Chunk.run_id == run_id))}
+        run = s.get(Run, run_id)
+        # The query instruction the run's chunks were embedded for (models.yaml may have changed since).
+        indexed_prefix = ((run.summary or {}).get("embed") or {}).get("query_prefix") if run else None
     cand_n = max(top_k * 4, 20)
 
     dense: dict[str, tuple[int, float]] = {}
     if mode in ("dense", "hybrid"):
         t0 = time.perf_counter()
         emb = Embedder()
-        vec = (await emb.embed([query]))[0]
+        vec = (await emb.embed([query], "query", query_prefix=indexed_prefix))[0]
         name = vectorstore.collection_name(emb.model, len(vec))
         out |= {"model": emb.model, "collection": name}
         if await asyncio.to_thread(vectorstore.client().collection_exists, name):

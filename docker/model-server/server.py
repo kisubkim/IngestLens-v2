@@ -1,16 +1,18 @@
-"""IngestLens model server: embedding (bge-m3) and rerank (bge-reranker-v2-m3) in ONE process, vLLM-compatible API.
+"""IngestLens model server: embedding (bge-m3, EmbeddingGemma) and rerank (bge-reranker-v2-m3) in ONE process,
+vLLM-compatible API.
 
 Why: vLLM serves one model per process. On a GPU in Exclusive_Process compute mode (one CUDA context per device,
 and no root to change it) two vLLM servers cannot share the card. This server loads both models in a single
 process, so the card sees one CUDA context.
 
-Needs only torch, transformers, fastapi and uvicorn, all of which a vLLM Python environment already has:
+Needs only torch, transformers, fastapi and uvicorn, all of which a vLLM Python environment already has, plus
+sentence-transformers for embedders whose pooling is not the CLS token (EmbeddingGemma: mean pooling and dense layers):
 
     python server.py --embed-model /models/bge-m3 --rerank-model /models/bge-reranker-v2-m3 --device cuda --port 8090
 
 Endpoints (the shapes vLLM uses, so IngestLens only needs base_url changes):
     GET  /health, /models, /v1/models
-    POST /v1/embeddings   {"model", "input": str | [str]}         -> {"data": [{"index", "embedding"}], ...}
+    POST /v1/embeddings   {"model", "input": str | [str], "dimensions"?} -> {"data": [{"index", "embedding"}], ...}
     POST /v1/rerank, /rerank {"model", "query", "documents", "top_n"} -> {"results": [{"index", "relevance_score"}]}
     POST /tokenize        {"model", "prompt"}                     -> {"count", "max_model_len"}
 
@@ -44,7 +46,9 @@ def _args() -> argparse.Namespace:
                     help="cuda, cuda:1 or cpu (CUDA_VISIBLE_DEVICES also works)")
     ap.add_argument("--rerank-device", default=env("MS_RERANK_DEVICE", ""), help="default: same as --device")
     ap.add_argument("--dtype", default=env("MS_DTYPE", "auto"), choices=["auto", "float16", "bfloat16", "float32"],
-                    help="auto = float16 on GPU, float32 on CPU")
+                    help="auto = float16 on GPU (bfloat16 for Gemma-family embedders, which break in float16), float32 on CPU")
+    ap.add_argument("--embed-backend", default=env("MS_EMBED_BACKEND", "auto"), choices=["auto", "cls", "st"],
+                    help="cls: CLS token (bge-m3); st: sentence-transformers pooling (EmbeddingGemma); auto: st for Gemma models")
     ap.add_argument("--embed-max-length", type=int, default=int(env("MS_EMBED_MAX_LENGTH", "8192")))
     ap.add_argument("--rerank-max-length", type=int, default=int(env("MS_RERANK_MAX_LENGTH", "1024")))
     ap.add_argument("--max-batch-tokens", type=int, default=int(env("MS_MAX_BATCH_TOKENS", "16384")),
@@ -55,10 +59,31 @@ def _args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def _dtype(name: str, device: str) -> torch.dtype:
+def _dtype(name: str, device: str, gemma: bool = False) -> torch.dtype:
+    """float16 breaks Gemma-family embedders silently (activations overflow): bfloat16 there, float32 if unsupported."""
     if name == "auto":
-        return torch.float16 if device.startswith("cuda") else torch.float32
+        if not device.startswith("cuda"):
+            return torch.float32
+        if gemma:
+            return torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+        return torch.float16
     return getattr(torch, name)
+
+
+def _model_type(path: str) -> str:
+    try:
+        from transformers import AutoConfig
+        return (AutoConfig.from_pretrained(path).model_type or "").lower()
+    except Exception:
+        return ""
+
+
+def _truncate(vecs: list[list[float]], dims: int | None) -> list[list[float]]:
+    """Matryoshka truncation (EmbeddingGemma: 512/256/128) and re-normalization, like vLLM's `dimensions`."""
+    if not dims:
+        return vecs
+    t = F.normalize(torch.tensor(vecs)[:, :dims], p=2, dim=-1)
+    return t.tolist()
 
 
 def _name(path: str, override: str) -> str:
@@ -97,6 +122,33 @@ class Embedder:
         return out, sum(lengths)  # type: ignore[return-value]
 
 
+class STEmbedder:
+    """Embedders packaged for sentence-transformers (modules.json: pooling, dense layers, normalize), e.g.
+    EmbeddingGemma. Only the text part is loaded when the model also has vision/audio encoders."""
+
+    def __init__(self, path: str, name: str, device: str, dtype: torch.dtype, max_length: int):
+        from sentence_transformers import SentenceTransformer
+
+        self.name, self.device, self.max_length = name, device, max_length
+        kw = {"device": device, "model_kwargs": {"torch_dtype": dtype}}
+        try:  # EmbeddingGemma 2: drop the image/audio encoders we do not use
+            self.model = SentenceTransformer(path, config_kwargs={"vision_config": None, "audio_config": None}, **kw)
+        except Exception:
+            self.model = SentenceTransformer(path, **kw)
+        self.model.max_seq_length = max_length
+        self.tok = self.model.tokenizer
+
+    def count(self, text: str) -> int:
+        return len(self.tok(text, add_special_tokens=True, truncation=False)["input_ids"])
+
+    @torch.inference_mode()
+    def __call__(self, texts: list[str], max_batch_tokens: int) -> tuple[list[list[float]], int]:
+        lengths = [min(self.count(t), self.max_length) for t in texts]
+        batch = max(1, max_batch_tokens // max(1, max(lengths)))
+        vecs = self.model.encode(texts, batch_size=batch, normalize_embeddings=True, convert_to_numpy=True)
+        return vecs.astype("float32").tolist(), sum(lengths)
+
+
 class Reranker:
     """Cross-encoder relevance: sigmoid of the single logit, 0..1 (FlagReranker normalize=True, CrossEncoder default)."""
 
@@ -120,6 +172,7 @@ class EmbeddingRequest(BaseModel):
     input: str | list[str]
     model: str | None = None
     encoding_format: str | None = None
+    dimensions: int | None = None
 
 
 class RerankRequest(BaseModel):
@@ -139,8 +192,14 @@ def build_app(args: argparse.Namespace) -> FastAPI:
         raise SystemExit("give --embed-model and/or --rerank-model")
     rerank_device = args.rerank_device or args.device
     t0 = time.perf_counter()
-    embedder = (Embedder(args.embed_model, _name(args.embed_model, args.embed_name), args.device,
-                         _dtype(args.dtype, args.device), args.embed_max_length) if args.embed_model else None)
+    embedder = None
+    if args.embed_model:
+        gemma = "gemma" in _model_type(args.embed_model)
+        backend = args.embed_backend if args.embed_backend != "auto" else ("st" if gemma else "cls")
+        cls = STEmbedder if backend == "st" else Embedder
+        embedder = cls(args.embed_model, _name(args.embed_model, args.embed_name), args.device,
+                       _dtype(args.dtype, args.device, gemma), args.embed_max_length)
+        print(f"embedder backend {backend}, dtype {_dtype(args.dtype, args.device, gemma)}", flush=True)
     reranker = (Reranker(args.rerank_model, _name(args.rerank_model, args.rerank_name), rerank_device,
                          _dtype(args.dtype, rerank_device), args.rerank_max_length) if args.rerank_model else None)
     print(f"loaded in {time.perf_counter() - t0:.1f}s: embed={embedder and embedder.name}@{args.device} "
@@ -174,6 +233,7 @@ def build_app(args: argparse.Namespace) -> FastAPI:
         texts = [req.input] if isinstance(req.input, str) else req.input
         with lock:
             vecs, tokens = model(texts, args.max_batch_tokens)
+        vecs = _truncate(vecs, req.dimensions)
         return {"object": "list", "model": model.name, "usage": {"prompt_tokens": tokens, "total_tokens": tokens},
                 "data": [{"object": "embedding", "index": i, "embedding": v} for i, v in enumerate(vecs)]}
 

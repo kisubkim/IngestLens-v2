@@ -15,8 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1 TRANSFORMERS_O
 # 빌드 PC의 추가 인증서(docker/certs/*.crt)는 패키지를 받는 동안만 쓰고 이미지에 남기지 않는다.
 RUN --mount=type=bind,source=certs,target=/tmp/certs \
     cat /etc/ssl/certs/ca-certificates.crt /tmp/certs/*.crt > /tmp/ca.pem 2>/dev/null; \
-    PIP_CERT=/tmp/ca.pem pip install --no-cache-dir torch --index-url ${TORCH_INDEX} \
- && PIP_CERT=/tmp/ca.pem pip install --no-cache-dir transformers fastapi "uvicorn[standard]" \
+    PIP_CERT=/tmp/ca.pem pip install --no-cache-dir torch torchvision --index-url ${TORCH_INDEX} \
+ && PIP_CERT=/tmp/ca.pem pip install --no-cache-dir transformers "sentence-transformers>=6.1" pillow fastapi "uvicorn[standard]" \
  && rm -f /tmp/ca.pem
 COPY model-server/server.py /srv/server.py
 EXPOSE 8090

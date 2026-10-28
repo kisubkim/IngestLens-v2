@@ -169,6 +169,20 @@ docker run -d --name open-webui -p 3000:8080 \
 - 슬라이드·시트처럼 쪽 단위로 자르는 문서(`page` 전략)는 쪽을 넘어 합치지 않는다. 절이 다르면 합치지 않는다.
 - 끄려면 `min_tokens: 0`. 처리마다 "근거" 탭에 `chunk_merge`(합치기 전후 청크 수)가 남는다.
 
+### 4-5. 임베딩 모델에 지시문이 필요할 때 (EmbeddingGemma 2 등)
+
+Open WebUI는 IngestLens가 준 청크를 자기 임베딩으로 다시 넣고 검색한다. 지시문이 필요한 임베딩 모델(EmbeddingGemma 2, e5)이면 IngestLens(`models.yaml`의 `embedding.query_prefix`, `document_prefix`)와 같은 지시문을 Open WebUI에도 준다. 0.11.3과 0.12.3 소스에서 확인한 환경 변수:
+
+```bash
+RAG_EMBEDDING_MODEL=embeddinggemma-2
+RAG_EMBEDDING_QUERY_PREFIX="task: search result | query: "
+RAG_EMBEDDING_CONTENT_PREFIX="title: none | text: "
+```
+
+- `RAG_EMBEDDING_PREFIX_FIELD_NAME`은 비워 둔다. 그래야 지시문을 글 앞에 그대로 붙인다.
+- Open WebUI의 문서 지시문은 고정이라 `title: none`으로 둔다(IngestLens는 청크의 절 제목을 넣는다).
+- 임베딩 모델을 바꾸면 지식 베이스의 문서를 다시 넣어야 한다(차원과 벡터가 다르다).
+
 ## 5. 사용하기
 
 ### 5-1. 지식 베이스에 문서 넣기
