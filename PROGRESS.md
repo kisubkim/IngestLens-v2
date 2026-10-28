@@ -356,6 +356,8 @@
 - **EmbeddingGemma 2(google/embeddinggemma-2, 2026-10-06, Apache-2.0, 768차원):** 모델 서버가 Gemma 계열을 알아보고 sentence-transformers 방식과 bfloat16(GPU)으로 올린다(모델 카드: float16은 값이 소리 없이 틀림). `--embed-backend`, 요청의 `dimensions`. 모델 서버 이미지에 sentence-transformers, Pillow, torchvision 추가(텍스트만 써도 전처리기가 요구). 이 PC에서 CPU로 띄워 공식 `prompt_name` 결과와 코사인 0.999 이상 일치 확인.
 - **비교(합성 세트 22문항):** dense hit@1 bge-m3 95%, EmbeddingGemma 2 지시문 있음 100%, 없음 91%. hybrid 82% / 91% / 82%. 지시문이 성패를 가른다.
 - **Open WebUI:** 0.11.3 소스에서 `RAG_EMBEDDING_QUERY_PREFIX`, `RAG_EMBEDDING_CONTENT_PREFIX`(필드 이름 설정이 없으면 글 앞에 붙임)를 확인하고 `deploy/OPENWEBUI.md` 4-5에 적었다.
+- **운영 버전(사용자 확인): vLLM 0.32.0, Open WebUI 0.12.3.** vLLM 0.32.0 릴리스 노트에 EmbeddingGemma 2 지원(PR #60254)이 있어 실행 명령(`--runner pooling --dtype bfloat16 --limit-mm-per-prompt image=0,audio=0,video=0`)을 `docs/EMBEDDING_MODELS.md` 7절에 적었다. Open WebUI 0.12.3 이미지의 소스에서 문서 로더, 청크, 임베딩 지시문, 도구 서버, reranker 설정이 0.11.3과 같은 것을 확인했다(화면 시험은 아직).
+- **묶음 `ingestlens-20261028`**(앱 `0f4f540`, 4,582MB): WSL Docker 설치로 PDF·장비 로그 처리와 바이너리 도구, 모델 서버 이미지로 EmbeddingGemma 2 적재(CPU)를 확인했다.
 
 ### 2-32. 바이너리(장비 로그) 형식 분석과 Open WebUI 도구 (10-16)
 
