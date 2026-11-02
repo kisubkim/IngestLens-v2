@@ -25,6 +25,7 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| 왼쪽 문서 목록 정리 (11-02) | 완료 | 문서가 많아도 목록만 패널 안에서 스크롤, 메뉴는 아래에 고정, 이름 검색과 실행 상태 필터("N개 중 M개"), 연 문서가 목록에서 보이게 스크롤 |
 | 임베딩 지시문과 모델 비교 준비 (10-28) | 완료 | `embedding.query_prefix`/`document_prefix`/`dimensions`, 실행이 색인된 질의 지시문으로 검색, 모델 서버의 EmbeddingGemma 2(sentence-transformers, bfloat16), Open WebUI 지시문 설정, VLM 점검 스크립트 `check_vlm.py` |
 | 바이너리 형식 분석 (10-16) | 완료 | 장비 로그 등 바이너리를 받아 개요(레코드 길이·헤더 추정, 필드 후보, hex, 문자열)를 넣고, Open WebUI 도구 서버(`/api/tools/binary`)로 LLM이 형식 명세를 써서 파일 전체를 해석·조회·JSON으로 내보냄. 업로드 한도 `RAG_MAX_UPLOAD_MB` |
 | 텍스트 파일 (10-15) | 완료 | txt, log, 확장자 없는 파일 등 내용이 글자인 파일을 A4 쪽으로 그려 처리(`tools/textdoc.py`, 근거 `text_render`). CSV·TSV는 표이면 엑셀처럼 그려 청크마다 머리 행(`csv_table`). 업로드 화면도 받음 |

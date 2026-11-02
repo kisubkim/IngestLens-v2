@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adminKey, api, ApiError, displayName, type Doc } from "./api";
 import RunView from "./RunView";
 import EvalView from "./EvalView";
@@ -22,6 +22,33 @@ function hashState(): { panel: Panel; agent: string } {
 
 function fmtSize(bytes: number) {
   return bytes >= 2 ** 20 ? `${(bytes / 2 ** 20).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+}
+
+type StatusFilter = "all" | "failed" | "active" | "succeeded" | "none";
+const STATUS_FILTERS: [StatusFilter, string][] = [
+  ["all", "전체"],
+  ["failed", "실패"],
+  ["active", "진행 중"],
+  ["succeeded", "완료"],
+  ["none", "실행 안 함"],
+];
+
+/** Sidebar filter: name search on the displayed name, and the latest run's state (queued for "순서대로 실행" counts as active). */
+function matches(d: Doc, query: string, status: StatusFilter, pending: string[]) {
+  if (query && !displayName(d.filename).toLowerCase().includes(query)) return false;
+  const s = d.latest_run?.status;
+  switch (status) {
+    case "failed":
+      return s === "failed" || s === "cancelled";
+    case "active":
+      return s === "queued" || s === "running" || pending.includes(d.id);
+    case "succeeded":
+      return s === "succeeded";
+    case "none":
+      return !d.latest_run;
+    default:
+      return true;
+  }
 }
 
 function splitFiles(files: File[]) {
@@ -57,6 +84,9 @@ export default function App() {
   }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const listRef = useRef<HTMLUListElement>(null);
 
   const refresh = useCallback(() => api.documents().then(setDocs).catch((e) => setError(String(e))), []);
   useEffect(() => {
@@ -70,6 +100,17 @@ export default function App() {
     const timer = setInterval(refresh, 2000);
     return () => clearInterval(timer);
   }, [active, refresh]);
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return docs.filter((d) => matches(d, q, statusFilter, pending));
+  }, [docs, query, statusFilter, pending]);
+  const filtered = query.trim() !== "" || statusFilter !== "all";
+
+  // Opening a document elsewhere (home screen, rerun) keeps its row visible in the scrolling list.
+  useEffect(() => {
+    if (selected) listRef.current?.querySelector("li.active")?.scrollIntoView({ block: "nearest" });
+  }, [selected?.id, shown]);
 
   const select = (d: Doc) => {
     setPanel("doc");
@@ -216,8 +257,25 @@ export default function App() {
             <button onClick={() => setPending([])}>비우기</button>
           </div>
         )}
-        <ul className="doc-list">
-          {docs.map((d) => (
+        <div className="side-tools">
+          <input
+            type="search"
+            placeholder="문서 이름 검색"
+            aria-label="문서 이름 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <select aria-label="실행 상태로 거르기" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
+            {STATUS_FILTERS.map(([v, label]) => (
+              <option key={v} value={v}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="side-count muted">{filtered ? `${docs.length}개 중 ${shown.length}개` : `문서 ${docs.length}개`}</div>
+        <ul className="doc-list" ref={listRef}>
+          {shown.map((d) => (
             <li key={d.id} className={selected?.id === d.id ? "active" : ""} onClick={() => select(d)}>
               <div className="doc-name" title={d.filename}>{displayName(d.filename)}</div>
               <div className="doc-meta">
@@ -229,17 +287,20 @@ export default function App() {
             </li>
           ))}
           {!docs.length && <li className="empty">업로드된 문서가 없습니다.</li>}
+          {docs.length > 0 && !shown.length && <li className="empty">조건에 맞는 문서가 없습니다.</li>}
         </ul>
-        <StatusBadge overall={backend.overall} active={panel === "status"} onClick={() => setPanel("status")} />
-        <button className={panel === "rules" ? "settings-link active" : "settings-link"} onClick={() => openRules(rulesAgent)}>
-          에이전트 규칙
-        </button>
-        <button className={panel === "evals" ? "settings-link active" : "settings-link"} onClick={() => setPanel("evals")}>
-          VLM 평가 비교
-        </button>
-        <button className={panel === "settings" ? "settings-link active" : "settings-link"} onClick={() => setPanel("settings")}>
-          저장 위치 설정
-        </button>
+        <nav className="side-menu">
+          <StatusBadge overall={backend.overall} active={panel === "status"} onClick={() => setPanel("status")} />
+          <button className={panel === "rules" ? "settings-link active" : "settings-link"} onClick={() => openRules(rulesAgent)}>
+            에이전트 규칙
+          </button>
+          <button className={panel === "evals" ? "settings-link active" : "settings-link"} onClick={() => setPanel("evals")}>
+            VLM 평가 비교
+          </button>
+          <button className={panel === "settings" ? "settings-link active" : "settings-link"} onClick={() => setPanel("settings")}>
+            저장 위치 설정
+          </button>
+        </nav>
       </aside>
 
       <main className="main">
