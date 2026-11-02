@@ -97,7 +97,7 @@ Other configuration (`RAG_` env vars or `.env`): `RAG_DATA_DIR` (default `./data
 - The `pinned` fixture (`conftest.py`) runs the app on a chosen engine for one test (`pinned("local")`, `pinned("auto")`); tests about ToolPDF or auto use it so the suite passes under any `RAG_PDF_ENGINE`. `tests/test_engine_conformance.py` runs every engine test on both engines with ToolPDF's answer as the reference; encrypted PDFs are made with ReportLab (`_encrypted_pdf`).
 - Mock the VLM with `_mock_vlm()` in `tests/test_pipeline.py`. SQLite drops timezones, so `to_dict` attaches UTC. The VLM semaphore is per event loop because TestClient uses a new loop per test.
 
-## Status and next steps (2026-10-28)
+## Status and next steps (2026-11-02)
 
 - Code and tests (131) pass in both transfer modes and with `RAG_PDF_ENGINE=local`. ToolPDF 0.2.0 is the reference engine; the local engine agrees on page labels, tables and figure regions for all 50 pages of `evals/samples` (`docs/ENGINE_PLAN.md` §9). Known gap: old OCR text layers split into many one-word titles on the local engine.
 - One app, two deployment forms: with ToolPDF (bundle, Docker stack, `start_local.bat`) or without (`--pdf-engine local` bundle, verified with `install.sh` in WSL Docker on 2026-10-10; `start_local.bat local`).
