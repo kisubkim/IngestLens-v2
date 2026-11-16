@@ -15,6 +15,9 @@ sif/ingestlens-model-server.sif (converted with Apptainer in a container), run b
 --pdf-engine local makes the bundle without ToolPDF: the app's own PDF engine (permissive libraries only) does all
 PDF work, deploy/docker-compose.local-engine.yml becomes docker-compose.yml, .env and singularity.env say
 RAG_PDF_ENGINE=local, and the archive is release/ingestlens-<version>-local-offline.tar. Same app image either way.
+--no-model-server leaves the model-server image out (the app .sif is still made with --singularity), for servers that
+run their own embedding/rerank server and for a GitHub release (each asset must stay under 2 GiB); the archive is
+release/ingestlens-<version>[-local]-nomodel-offline.tar.
 Model weights are not included (see deploy/README.md).
 """
 
@@ -130,6 +133,8 @@ def main() -> None:
                     help="ToolPDF release folder (default: newest $TOOLPDF_DIR/release/toolpdf-*, TOOLPDF_DIR=../ToolPDF)")
     ap.add_argument("--pdf-engine", choices=["toolpdf", "local"], default="toolpdf",
                     help="toolpdf: bundle ToolPDF's release next to the app (default); local: no ToolPDF, the app's own engine")
+    ap.add_argument("--no-model-server", action="store_true",
+                    help="leave the model-server image out (own embedding/rerank server; GitHub release under 2 GiB)")
     a = ap.parse_args()
     if a.no_docker and not a.singularity:
         ap.error("--no-docker leaves no image to run; use it together with --singularity")
@@ -143,7 +148,7 @@ def main() -> None:
     if dirty:
         print("[경고] 커밋하지 않은 변경이 있습니다. 이미지에는 지금 작업 폴더의 내용이 들어갑니다.", file=sys.stderr)
 
-    name = f"ingestlens-{version}" + ("" if with_toolpdf else "-local")
+    name = f"ingestlens-{version}" + ("" if with_toolpdf else "-local") + ("-nomodel" if a.no_model_server else "")
     bundle = a.out / name
     if bundle.exists():
         shutil.rmtree(bundle)
@@ -158,13 +163,14 @@ def main() -> None:
         save_image(image, bundle / "images" / f"ingestlens-app-{version}.tar.gz")
 
     if a.singularity:
-        ms_image = f"ingestlens-model-server:{version}"
-        docker("build", "-f", "docker/model-server/release.Dockerfile",
-            "--build-arg", f"TORCH_INDEX=https://download.pytorch.org/whl/{a.torch_cuda}",
-            "--build-arg", f"VERSION={version}", "-t", ms_image, "docker")
         (bundle / "sif").mkdir()
         to_sif(image, bundle / "sif" / "ingestlens-app.sif", a.out, a.apptainer_image)
-        to_sif(ms_image, bundle / "sif" / "ingestlens-model-server.sif", a.out, a.apptainer_image)
+        if not a.no_model_server:
+            ms_image = f"ingestlens-model-server:{version}"
+            docker("build", "-f", "docker/model-server/release.Dockerfile",
+                "--build-arg", f"TORCH_INDEX=https://download.pytorch.org/whl/{a.torch_cuda}",
+                "--build-arg", f"VERSION={version}", "-t", ms_image, "docker")
+            to_sif(ms_image, bundle / "sif" / "ingestlens-model-server.sif", a.out, a.apptainer_image)
 
     compose = "docker-compose.yml" if with_toolpdf else "docker-compose.local-engine.yml"
     for f in (ROOT / "deploy").iterdir():

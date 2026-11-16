@@ -78,7 +78,12 @@ stop_one() {
 }
 
 case "${1:-}" in
-  start) start_pdf; start_model; start_app ;;
+  start)
+    start_pdf
+    # A bundle made with --no-model-server has no model-server image: the embedding/rerank server runs on its own.
+    if [ -f "$MODEL_SIF" ]; then start_model
+    else echo "모델 서버 이미지($MODEL_SIF)가 없어 건너뜁니다. 따로 띄운 임베딩·rerank 서버 주소를 $MODELS_YAML 에 적어 둡니다."; fi
+    start_app ;;
   start-pdf) start_pdf ;;
   start-model) start_model ;;
   start-app) start_app ;;
