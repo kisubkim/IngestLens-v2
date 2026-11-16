@@ -357,6 +357,7 @@
 - `deploy/openwebui_patch.py`(표준 라이브러리만): External 조건에 `ingestlens_handles(filename, url, key)`를 더하고(아니면 Open WebUI 기본 로더 분기로 내려감), `save_docs_to_vector_db`에서 `loader: ingestlens` 청크는 분할기를 건너뛴다. 판단 코드는 새 파일 `retrieval/loaders/ingestlens_route.py`(formats를 5분 기억, 실패하면 기본 목록, `INGESTLENS_EXTENSIONS`로 고정 가능). 기준 문장이 하나라도 없으면 아무것도 바꾸지 않는다. 원본은 `.ingestlens-orig`, `--check`, `--revert`. `deploy/openwebui_patch.sh`는 Docker 컨테이너에 넣고 재시작한다. 묶음에도 들어간다(`deploy/`의 파일은 모두 복사).
 - 결과: Open WebUI 0.13.3 이미지로 패치 전후 비교(`deploy/OPENWEBUI.md` 12-4). 패치 후 md·html·json은 Open WebUI 로더, 나머지는 IngestLens이고 IngestLens 청크는 `CHUNK_SIZE=300`이어도 그대로였다(report.pdf 21조각 → 6조각). 그래서 패치하면 4-1 ②의 청크 설정(8000/0)이 필요 없다.
 - 시험 3개 추가(formats와 LibreOffice·추가 확장자·키, `loader` 표시, 패치의 판단 모듈: formats 기억·실패 시 기본 목록·환경 변수). 전체 134개, 세 설정.
+- **묶음과 첫 GitHub 릴리스**: `ingestlens-20261117`(앱 `71216e2`, 모델 서버 포함 4.8GB)과, 사용자 요청으로 모델 서버 이미지를 뺀 `ingestlens-20261117-nomodel`(새 옵션 `--no-model-server`, 앱 `67b475e`, 608MB). 운영은 임베딩·rerank를 MPS로 따로 띄우므로 릴리스에는 nomodel 묶음을 넣는다(GitHub 첨부 한도 2GiB). `singularity.sh start`는 모델 서버 이미지가 없으면 그 단계를 건너뛴다. nomodel 묶음을 WSL Docker에 설치해 formats와 로더 처리를 확인하고, GitHub API(`git credential fill`의 토큰, gh 없음)로 릴리스 `v20261117`을 만들어 묶음과 SHA-256 파일을 올렸다.
 
 ### 2-34. 왼쪽 문서 목록 정리 (11-02)
 
