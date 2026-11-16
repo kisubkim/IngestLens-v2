@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-11-02
+최종 갱신: 2026-11-17
 
 전체 상태, 설계 이유, 운영 절차는 `docs/HANDOFF.md`에 있다. 이 문서는 2026-10-04부터 한 작업의 진행 상황을 정리한다.
 - 10-04 오전: 로컬 실제 모델 검증, VLM 평가 체계
@@ -22,6 +22,7 @@
 - 10-16: 바이너리(장비 로그) 형식 분석: 개요, 형식 명세로 해석, Open WebUI 도구 서버
 - 10-28: 임베딩 지시문(EmbeddingGemma 2 준비, bge-m3와 비교), VLM 점검 스크립트와 비교 순서
 - 11-02: 왼쪽 문서 목록 정리(목록만 스크롤, 메뉴 고정, 검색·상태 필터)
+- 11-17: Open WebUI 0.13.3 패치로 IngestLens가 처리하는 파일만 보내고 나머지는 Open WebUI 로더로
 
 ## 1. 한눈에 보기
 
@@ -346,6 +347,16 @@
   - 로컬 CPU reranker는 커진 청크 20개를 60초 안에 rerank하지 못해 시간 초과가 났다(운영 GPU와 무관).
 - `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
 - Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
+
+### 2-35. Open WebUI에서 IngestLens가 처리하는 파일만 보내기 (11-17)
+
+사용자 요청: Open WebUI(운영 0.13.3)에서 정해진 형식이 아니면 파일을 올릴 수 없게 되어 있다. IngestLens가 처리하는 것만 IngestLens로 가져오고 나머지는 Open WebUI 기본 처리로 가게 한다.
+
+- 0.13.3 소스(태그 `v0.13.3`)를 보고 확인한 것: 콘텐츠 추출 엔진이 External이면 `Loader._get_loader`가 확장자와 상관없이 모든 파일을 External로 보낸다(URL과 API 키가 모두 있을 때). 확장자별 설정은 없다. 올릴 수 없게 막는 것은 허용 확장자(`rag.file.allowed_extensions`, `routers/files.py`)다. 로더가 준 문서는 `save_docs_to_vector_db`에서 Open WebUI 청크 설정으로 다시 잘린다.
+- IngestLens: `GET /api/openwebui/formats`(키 필요) = pdf, 그림, docx/pptx/xlsx, txt/log/csv/tsv, dat/bin, 확장자 없는 파일. 엔진에 LibreOffice가 있으면 doc/ppt/xls/odt/odp/ods/rtf/hwp도. `RAG_OPENWEBUI_EXTRA_EXTENSIONS`로 더한다. md/html/json/코드/zip은 일부러 뺐다(IngestLens는 글자 그대로 쪽을 그리거나 ZIP을 바이너리 로그로 본다). Open WebUI 로더용 청크 메타데이터에 `loader: ingestlens`를 더했다. `process`는 지금처럼 모든 파일을 받는다(패치 안 한 Open WebUI와의 호환).
+- `deploy/openwebui_patch.py`(표준 라이브러리만): External 조건에 `ingestlens_handles(filename, url, key)`를 더하고(아니면 Open WebUI 기본 로더 분기로 내려감), `save_docs_to_vector_db`에서 `loader: ingestlens` 청크는 분할기를 건너뛴다. 판단 코드는 새 파일 `retrieval/loaders/ingestlens_route.py`(formats를 5분 기억, 실패하면 기본 목록, `INGESTLENS_EXTENSIONS`로 고정 가능). 기준 문장이 하나라도 없으면 아무것도 바꾸지 않는다. 원본은 `.ingestlens-orig`, `--check`, `--revert`. `deploy/openwebui_patch.sh`는 Docker 컨테이너에 넣고 재시작한다. 묶음에도 들어간다(`deploy/`의 파일은 모두 복사).
+- 결과: Open WebUI 0.13.3 이미지로 패치 전후 비교(`deploy/OPENWEBUI.md` 12-4). 패치 후 md·html·json은 Open WebUI 로더, 나머지는 IngestLens이고 IngestLens 청크는 `CHUNK_SIZE=300`이어도 그대로였다(report.pdf 21조각 → 6조각). 그래서 패치하면 4-1 ②의 청크 설정(8000/0)이 필요 없다.
+- 시험 3개 추가(formats와 LibreOffice·추가 확장자·키, `loader` 표시, 패치의 판단 모듈: formats 기억·실패 시 기본 목록·환경 변수). 전체 134개, 세 설정.
 
 ### 2-34. 왼쪽 문서 목록 정리 (11-02)
 

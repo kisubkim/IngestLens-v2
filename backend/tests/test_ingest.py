@@ -1,8 +1,10 @@
+import importlib.util
 from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
-from app.config import settings
+from app.config import ROOT, settings
+from app.tools.engine import engine
 from app.main import app
 
 from .minipdf import one_line_pdf
@@ -78,3 +80,75 @@ def test_api_key(sample_pdf, monkeypatch):
         assert client.put("/api/openwebui/process", content=body, headers=ok).status_code == 200
         # The UI endpoints stay open; the key guards only the ingest API.
         assert client.get("/api/documents").status_code == 200
+
+
+def test_openwebui_formats(monkeypatch):
+    real = engine().health
+    monkeypatch.setattr(settings, "openwebui_extra_extensions", " DLG, .rec ")
+    with TestClient(app) as client:
+        monkeypatch.setattr(engine(), "health", lambda timeout_s=3: {**real(), "libreoffice": None})
+        res = client.get("/api/openwebui/formats").json()
+        exts = set(res["extensions"])
+        assert {"pdf", "png", "docx", "pptx", "xlsx", "txt", "log", "csv", "dat", "dlg", "rec"} <= exts
+        assert not exts & {"doc", "hwp", "md", "html", "json", "zip", "epub"}  # left to Open WebUI's own loaders
+        assert res["no_extension"] is True and res["libreoffice"] is False
+        monkeypatch.setattr(engine(), "health", lambda timeout_s=3: {**real(), "libreoffice": "/usr/bin/soffice"})
+        res = client.get("/api/openwebui/formats").json()
+        assert {"doc", "ppt", "xls", "hwp"} <= set(res["extensions"]) and res["libreoffice"] is True
+        monkeypatch.setattr(settings, "api_key", "secret")
+        assert client.get("/api/openwebui/formats").status_code == 401
+        assert client.get("/api/openwebui/formats", headers={"Authorization": "Bearer secret"}).status_code == 200
+
+
+def test_openwebui_chunks_marked(tmp_path):
+    pdf = one_line_pdf(tmp_path / "mark.pdf", "chunk marked for the patched Open WebUI")
+    with TestClient(app) as client:
+        res = client.put("/api/openwebui/process", content=pdf.read_bytes(), headers={"X-Filename": "mark.pdf"})
+        assert res.status_code == 200, res.text
+        assert all(d["metadata"]["loader"] == "ingestlens" for d in res.json())
+
+
+def _route_module(monkeypatch, env=None):
+    spec = importlib.util.spec_from_file_location("owui_patch", ROOT / "deploy" / "openwebui_patch.py")
+    patch = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(patch)
+    if env is None:
+        monkeypatch.delenv("INGESTLENS_EXTENSIONS", raising=False)
+    else:
+        monkeypatch.setenv("INGESTLENS_EXTENSIONS", env)
+    ns = {"__name__": "ingestlens_route"}
+    exec(compile(patch.ROUTE_MODULE, "ingestlens_route.py", "exec"), ns)
+    return ns
+
+
+def test_openwebui_patch_route(monkeypatch):
+    """The routing module the Open WebUI patch installs: asks GET {url}/formats, falls back to its own list."""
+    ns = _route_module(monkeypatch)
+    calls = []
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"extensions": ["pdf", "log"], "no_extension": False}
+
+    monkeypatch.setattr(ns["requests"], "get", lambda url, **kw: calls.append((url, kw["headers"])) or Resp())
+    handles = ns["ingestlens_handles"]
+    assert handles("a.PDF", "http://il:8000/api/openwebui/", "k") is True
+    assert handles("notes.md", "http://il:8000/api/openwebui/", "k") is False
+    assert handles("README", "http://il:8000/api/openwebui/", "k") is False
+    assert calls == [("http://il:8000/api/openwebui/formats", {"Authorization": "Bearer k"})]  # cached
+
+    def down(url, **kw):
+        raise OSError("refused")
+
+    monkeypatch.setattr(ns["requests"], "get", down)
+    assert handles("a.docx", "http://other/api/openwebui", "") is True  # built-in list while IngestLens is down
+    assert handles("a.html", "http://other/api/openwebui", "") is False
+
+    fixed = _route_module(monkeypatch, "pdf, .HWP, noext")["ingestlens_handles"]
+    assert fixed("x.hwp", "u", "") and fixed("syslog", "u", "") and not fixed("x.txt", "u", "")
+
+    doc = type("Doc", (), {"metadata": {"loader": "ingestlens"}})()
+    assert ns["is_ingestlens_chunk"](doc) and not ns["is_ingestlens_chunk"](type("D", (), {"metadata": {}})())

@@ -1,6 +1,6 @@
 # HANDOFF: 다른 환경에서 이어서 개선하기 위한 문서
 
-최종 갱신: 2026-11-02. 이 문서는 현재 상태, 새 환경 준비, 실제 모델 연결 절차, 튜닝 방법, 남은 일, 개발 중 겪은 함정을 정리한다.
+최종 갱신: 2026-11-17. 이 문서는 현재 상태, 새 환경 준비, 실제 모델 연결 절차, 튜닝 방법, 남은 일, 개발 중 겪은 함정을 정리한다.
 원래 계획은 `docs/PLAN.md`, 평가 방법은 `evals/README.md`에 있다.
 
 ---
@@ -25,6 +25,7 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| Open WebUI 파일 나눠 보내기 (11-17) | 완료 | Open WebUI 0.13.3 패치(`deploy/openwebui_patch.py`, Docker는 `openwebui_patch.sh`): External이어도 IngestLens가 처리하는 확장자(`GET /api/openwebui/formats`)만 보내고 나머지는 Open WebUI 자체 로더로. `loader: ingestlens` 청크는 Open WebUI가 다시 자르지 않음. 0.13.3 컨테이너에서 확인(`deploy/OPENWEBUI.md` 12절) |
 | 왼쪽 문서 목록 정리 (11-02) | 완료 | 문서가 많아도 목록만 패널 안에서 스크롤, 메뉴는 아래에 고정, 이름 검색과 실행 상태 필터("N개 중 M개"), 연 문서가 목록에서 보이게 스크롤 |
 | 임베딩 지시문과 모델 비교 준비 (10-28) | 완료 | `embedding.query_prefix`/`document_prefix`/`dimensions`, 실행이 색인된 질의 지시문으로 검색, 모델 서버의 EmbeddingGemma 2(sentence-transformers, bfloat16), Open WebUI 지시문 설정, VLM 점검 스크립트 `check_vlm.py` |
 | 바이너리 형식 분석 (10-16) | 완료 | 장비 로그 등 바이너리를 받아 개요(레코드 길이·헤더 추정, 필드 후보, hex, 문자열)를 넣고, Open WebUI 도구 서버(`/api/tools/binary`)로 LLM이 형식 명세를 써서 파일 전체를 해석·조회·JSON으로 내보냄. 업로드 한도 `RAG_MAX_UPLOAD_MB` |
@@ -192,7 +193,7 @@ RAG_TOOLPDF_URL=http://127.0.0.1:8095 \
 
 ### 3-4. Open WebUI 연동 (선택)
 
-Open WebUI에 파일을 추가하면 이 서버가 파일을 받아 파이프라인을 자동으로 실행하게 할 수 있다. Open WebUI의 **External 문서 로더**(콘텐츠 추출 엔진) 기능을 쓴다. Open WebUI 쪽에는 코드 수정이나 플러그인이 필요 없다.
+Open WebUI에 파일을 추가하면 이 서버가 파일을 받아 파이프라인을 자동으로 실행하게 할 수 있다. Open WebUI의 **External 문서 로더**(콘텐츠 추출 엔진) 기능을 쓴다. 이것만으로는 모든 파일이 이 서버로 온다. IngestLens가 처리하는 파일만 받고 나머지는 Open WebUI가 직접 읽게 하려면 Open WebUI 0.13.3에 `deploy/openwebui_patch.py`를 적용한다(`deploy/OPENWEBUI.md` 12절).
 
 **이 서버 설정** (`.env` 또는 환경 변수)
 
@@ -214,7 +215,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 **동작**
 1. Open WebUI가 `PUT {URL}/process`를 호출한다. 본문은 파일 바이트이고, 헤더는 `X-Filename`(URL 인코딩된 파일 이름), `Content-Type`, `Authorization: Bearer <키>`다.
 2. 이 서버는 파일을 저장하고 실행을 대기열에 넣는다. 화면에서 시작한 실행과 같은 줄이라 하나씩 순서대로 처리된다. 같은 파일(sha256)의 성공한 실행이 있으면 다시 실행하지 않는다.
-3. 실행이 끝나면 청크를 `[{page_content, metadata}]`로 돌려준다. metadata는 `source`(파일 이름), `document_id`, `run_id`, `chunk_id`, `page`(0부터, LangChain PDF 로더와 같아서 Open WebUI가 +1 해서 보여준다), `page_label`(1부터), `pages`(1부터, 쉼표 구분), `section`, `element_types`이고 모두 문자열이나 숫자다.
+3. 실행이 끝나면 청크를 `[{page_content, metadata}]`로 돌려준다. metadata는 `loader`(`ingestlens`, 패치한 Open WebUI가 다시 자르지 않는 표시), `source`(파일 이름), `document_id`, `run_id`, `chunk_id`, `page`(0부터, LangChain PDF 로더와 같아서 Open WebUI가 +1 해서 보여준다), `page_label`(1부터), `pages`(1부터, 쉼표 구분), `section`, `element_types`이고 모두 문자열이나 숫자다.
 4. Open WebUI는 받은 청크를 자기 임베딩으로 다시 색인한다. 이 서버의 Qdrant에도 같은 문서가 색인되며, 처리 과정과 결정 근거는 이 서버 화면에서 볼 수 있다.
 
 **연결 확인 순서**
@@ -296,6 +297,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [ ] 짧은 청크의 임베딩 검색이 약하다. 합친 LIS3DH WHO_AM_I 청크(54토큰)도 한국어 질문에 dense 20위(BM25 1위)라 Open WebUI가 TOP_K 10에서도 못 가져왔다. 후보: 청크 임베딩에 문서 제목·절 경로를 붙여 넣기(contextual chunk), 질문을 문서 언어로 바꿔 한 번 더 검색, 절 단위로 짧은 절끼리 합치기.
 - [ ] 절의 첫 청크만 검색되고 정답이 두 번째 청크에 있는 경우(MPU-6000 I2C 주소 "b110100X"). 후보: 검색된 청크의 같은 절 이웃 청크를 함께 넘기기(Open WebUI 쪽에서는 어려우므로 IngestLens 검색 API 쪽).
 - [x] PDF 엔진 인터페이스와 내장 엔진(2026-10-10, `docs/ENGINE_PLAN.md` 9절). 남은 것: 두 엔진으로 검색 품질 비교(`eval_retrieval.py`, 실제 운영 문서), 큰 문서 속도(`bench_large.py`, 내장 엔진은 앱 프로세스의 스레드에서 돈다), 오래된 OCR 글자층에서 제목 조각이 많은 문제(내장 엔진).
+- [ ] Open WebUI 패치(`openwebui_patch.py`, 12절): 운영 Open WebUI 0.13.3에 적용하고 화면(채팅 첨부, 지식 베이스)에서 md·pdf를 올려 확인. Open WebUI를 올릴 때마다 `--check`, 기준 문장이 바뀌면 패치를 그 버전에 맞게 고친다.
 - [ ] 바이너리 도구: Open WebUI **화면**에서 도구 실행까지 이어지는 흐름 확인(API로는 등록·첨부·모델의 도구 호출까지, 실행 루프는 같은 도구로 Ollama `gemma4:12b`에서 확인), 운영 vLLM 모델의 도구 호출 설정(`--enable-auto-tool-choice`, 모델별 `--tool-call-parser`), 길이가 바뀌는 레코드와 압축 데이터는 명세로 표현 못 함, 실제 장비 로그로 개요의 레코드·헤더 추정이 맞는지.
 - [x] 암호 PDF(2026-10-10): 업로드의 `password` 폼 필드, `PUT /api/documents/{id}/password`, 실패한 실행 화면의 입력란. 두 엔진 모두. 비밀번호는 DB(`documents.password`)에 평문으로 저장된다(쪽 이미지를 나중에 그릴 때도 필요). 문서 내용도 이미 DB와 벡터에 평문으로 있으므로 같은 보호 수준이다. Open WebUI 로더로는 비밀번호를 넘길 수 없다.
 - [x] 배포 묶음에 ToolPDF 0.2.0 넣기(2026-10-10): ToolPDF `ea72cd3`으로 `release/toolpdf-0.2.0`을 만들고 묶음 `ingestlens-20261010`(Docker + `--singularity`)을 다시 만들었다. 2026-10-15에 텍스트·CSV 처리를 넣어 `ingestlens-20261015`로, 2026-10-16에 바이너리 분석을 넣어 `ingestlens-20261016`(앱 `acfadf3`)으로, 2026-10-28에 임베딩 지시문과 EmbeddingGemma 2 지원을 넣어 `ingestlens-20261028`(앱 `0f4f540`)로, 2026-11-02에 왼쪽 문서 목록 정리를 넣어 `ingestlens-20261102`(앱 `e50a2c9`)로 다시 만들었다. 오프라인 서버의 묶음은 이것으로 바꾼다.
@@ -329,6 +331,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 | 2026-10-04 | 3페이지 PDF(텍스트, 스캔, 차트 그림), 같은 스택 | 전체 60s(모델 첫 로드 포함), 그림 설명 1회 8.0s, rerank 15개 1.6~2.2s(CPU) | manual.pdf 12p는 32s |
 | 2026-10-10 | 두 PDF 엔진 비교: ToolPDF 0.2.0(PyMuPDF 1.28.2, 프로세스 4개) 대 내장 엔진(pypdfium2 5.13.0, pdfplumber 0.11.10), 공개 문서 10종 50쪽(`evals/samples`), 같은 규칙, VLM 없이 | 쪽 라벨 50/50 같음, 표 20 대 20, 그림 영역 40 대 40, 글자 수 대부분 ±3%. 문서당 쪽 분석 + 추출 0.3~3.4초 대 0.1~2.8초 | 다른 점: 오래된 스캔의 OCR 글자층(NACA) 제목 149 대 588. 맞추느라 바꾼 것(선 개수를 PDFium 경로 수로, 열린 표 테두리 한도 400pt, 글자 없는 격자 버림, `line_margin` 0.8)은 `docs/ENGINE_PLAN.md` 9절 |
 | 2026-10-28 | 배포 묶음 `ingestlens-20261028`(`--singularity`, 앱 `0f4f540`, ToolPDF 0.2.0), WSL Docker Engine에 묶음만으로 설치(포트 8128), 모델 주소 비움 | 묶음 4,582MB(앱 sif 161MB, 모델 서버 sif 4,199MB). PDF 엔진 ToolPDF 0.2.0 정상, sample.pdf 라벨 정상, 장비 로그 2만 레코드 해석·내보내기·내려받기. 모델 서버 이미지(torch 2.11 cu128, sentence-transformers 6.2)를 CPU로 띄워 EmbeddingGemma 2를 st 방식으로 4.7초에 올리고 `dimensions` 256 정상 | 모델 서버 이미지가 커짐(torchvision 추가). 같은 PC의 다른 vLLM이 GPU를 쓰고 있어 GPU 시험은 하지 않음 |
+| 2026-11-17 | Open WebUI v0.13.3(Docker 이미지, 패치 전후) + IngestLens(이 저장소 코드, 내장 PDF 엔진), Open WebUI `CHUNK_SIZE=300`, 파일 7개를 API로 업로드 | 패치 전: 7개 모두 IngestLens, IngestLens 청크도 300자 이하로 다시 잘림(report.pdf 21조각). 패치 후: pdf·log·확장자 없는 파일·dlg는 IngestLens(청크 그대로, report.pdf 6조각), md·html·json은 Open WebUI 로더 | 화면 업로드는 미확인. `deploy/OPENWEBUI.md` 12-4 |
 | 2026-11-02 | 배포 묶음 `ingestlens-20261102`(`--singularity`, 앱 `e50a2c9`, ToolPDF 0.2.0), WSL Docker Engine에 묶음만으로 설치(`.env`의 `INGESTLENS_PORT=8128`), 모델 주소 비움 | 묶음 4,584MB(앱 sif 154MB, 모델 서버 sif 4,005MB). SHA256SUMS 정상, `/api/health` 버전 20261102, PDF 엔진 ToolPDF 0.2.0(shared), 화면에 새 목록(`side-menu`)과 투명 스크롤바 CSS, CSV 업로드 정상 | 화면만 바뀐 묶음이라 모델 서버는 다시 띄우지 않음. 포트는 셸 변수가 아니라 `.env`에서 바꿔야 한다(install.sh가 `.env`를 읽어 덮어씀) |
 | 2026-10-28 | 합성 검색 세트 22문항, 내장 PDF 엔진, rerank 없음. bge-m3(Windows Ollama) 대 EmbeddingGemma 2(모델 서버 CPU float32, 지시문 있음·없음) | dense hit@1 95% / **100%** / 91%, paraphrase hit@1 88% / **100%** / 75%, hybrid hit@1 82% / **91%** / 82% | 지시문 없이는 bge-m3보다 낫지 않다. 표본이 작다. `evals/reports/retrieval_synthetic_*_20261028.md`, `docs/EMBEDDING_MODELS.md` 7절 |
 | 2026-10-16 | 배포 묶음 `ingestlens-20261016`(`--singularity`, 앱 커밋 `acfadf3`, ToolPDF 0.2.0 `ea72cd3`), WSL Docker Engine에 묶음만으로 설치(포트 8126), 모델 주소 비움 | 묶음 4,505MB. 상태: PDF 엔진 ToolPDF 0.2.0 옵션 지원 정상. 합성 장비 로그 2만 레코드: 개요가 레코드 32·헤더 64, 도구 6개 응답, 해석 경고 없음·헤더 장치 이름, 1532번 레코드 조회, JSON 내보내기 3.8MB와 내려받기(`plant_C.json`), 키 없으면 401 | 첫 20261016 묶음(`93d4675`)은 내려받기 이름이 `C.json`으로 잘리는 버그가 있어 `acfadf3`으로 고쳐 다시 만듦 |
@@ -394,6 +397,8 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - **BAAI/bge-m3는 가중치가 `pytorch_model.bin`이다**: safetensors가 없다. Hugging Face에서 받을 때 `*.safetensors`만 고르면 43MB 설정 파일만 받아진다.
 - **Singularity는 이미지의 WORKDIR이 아니라 실행한 사람의 폴더에서 시작한다**: 그래서 앱 이미지의 시작 명령은 `uvicorn --app-dir /app/backend`로 폴더와 상관없이 동작하게 했다. 또 Singularity는 호스트 네트워크를 그대로 쓰므로 포트는 `INGESTLENS_PORT`로 정하고, 모델 서버 주소는 `127.0.0.1`이다(`models.singularity.yaml`).
 - **Windows(WSL2)의 Docker 안에서는 `apptainer --nv`가 GPU를 찾지 못한다**: WSL2의 GPU는 `/dev/dxg`로 전달되고 `/dev/nvidia*` 장치가 없기 때문이다. GPU 동작은 같은 이미지를 Docker `--gpus all`로 띄워 확인한다.
+- **Open WebUI 0.13.3은 External 문서 로더의 API 키가 비어 있으면 External을 쓰지 않는다**(`_get_loader`의 조건). IngestLens의 `RAG_API_KEY`를 비워 두었어도 Open WebUI 쪽에는 아무 값이나 넣는다. 또 Open WebUI에는 "이 확장자만 External로" 같은 설정이 없다. 허용 확장자(`RAG_ALLOWED_FILE_EXTENSIONS`)는 업로드 자체를 막을 뿐이라, 나눠 보내려면 패치가 필요하다(`deploy/OPENWEBUI.md` 12절).
+- **Windows에서 받은 Open WebUI 소스는 줄 끝이 CRLF다**: 패치의 기준 문장을 찾을 때 줄 끝을 LF로 바꿔 비교한다(`openwebui_patch.py` `read`). 컨테이너 안의 파일은 LF다.
 - **Open WebUI는 문서 로더가 돌려준 청크를 자기 설정으로 다시 자른다**: 기본값은 1000자, 겹침 100자, Markdown 헤더 분할이다. 그대로 두면 IngestLens 청크 49개가 58개로 늘고 표가 잘렸다. `CHUNK_SIZE=8000`, `CHUNK_OVERLAP=0`, `ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER=false`로 둔다.
 - **Open WebUI는 출처의 `page`를 0부터로 보고 +1 해서 보여준다**(LangChain PDF 로더 규약): 그래서 `/api/openwebui/process`는 `page`를 0부터, `page_label`과 `pages`는 1부터 보낸다. 2026-10-07 전에는 1부터 보내서 쪽 번호가 1씩 크게 보였다.
 - **Open WebUI 0.11 필터에서 답변에 무언가를 붙일 때**: 화면은 `content`가 아니라 `output` 항목에서 그린다(`content`만 고치면 저장은 되지만 안 보인다). 필터가 고친 `sources`는 저장되지 않으므로 출처는 `__event_emitter__`의 `source` 이벤트로 넣는다. HTML 주석과 `<img>`는 글자로 보이고, Markdown 이미지는 원래 크기로 그려지며 눌렀을 때의 미리보기도 원래 크기까지만 커진다. 그래서 쪽 썸네일은 `embeds` 이벤트(iframe, 높이는 `postMessage({type: "iframe:height"})`)로 넣었다.

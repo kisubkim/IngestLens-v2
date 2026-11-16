@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     public_url: str = ""  # this app's address as users' browsers reach it (download links in tool answers); empty = the request's
     max_upload_mb: float = 100  # larger uploads are refused (413) while streaming; 0 = no limit
     ingest_wait_seconds: float = 3600  # how long the Open WebUI loader waits for a run before giving up
+    # Extensions (comma-separated, e.g. "dlg,rec") that a patched Open WebUI also sends here, on top of
+    # GET /api/openwebui/formats' built-in list: typically device-log formats this app reads as binary.
+    openwebui_extra_extensions: str = ""
     evals_dir: Path = ROOT / "evals" / "results"  # result files of scripts/eval_*.py shown by the comparison screen
 
     @field_validator("data_dir", "models_file", "rules_file", "evals_dir")

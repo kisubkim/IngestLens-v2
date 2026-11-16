@@ -18,6 +18,8 @@ from ..config import settings
 from ..db import session
 from ..graph.pipeline import start_run
 from ..models import Chunk, Document, Run, to_dict
+from ..tools.engine import engine
+from ..tools.office import IMAGE_EXT, NATIVE_FORMATS, OFFICE_EXT
 from .auth import require_key
 from .documents import _save, save_stream
 
@@ -86,6 +88,29 @@ async def _wait(run_id: str, timeout: float) -> dict:
         await asyncio.sleep(1)
 
 
+# What a patched Open WebUI (deploy/openwebui_patch.py) sends here; every other file stays with its own loaders.
+# Office formats other than docx/pptx/xlsx need LibreOffice, so they are listed only when the engine has it
+# (without it Open WebUI's own loaders still read .doc/.ppt/.xls). Markdown, HTML, JSON, code, e-mail and
+# e-books are left to Open WebUI: this app would draw them as plain text pages, or see a ZIP as a binary log.
+OPENWEBUI_TEXT_EXT = {"txt", "log", "csv", "tsv"}
+OPENWEBUI_BINARY_EXT = {"dat", "bin"}  # device logs (binary overview, binary tools)
+
+
+def openwebui_formats(libreoffice: bool) -> dict:
+    office = NATIVE_FORMATS | (OFFICE_EXT if libreoffice else set())
+    extra = {e.strip().lower().lstrip(".") for e in settings.openwebui_extra_extensions.split(",") if e.strip()}
+    exts = {"pdf"} | IMAGE_EXT | office | OPENWEBUI_TEXT_EXT | OPENWEBUI_BINARY_EXT | extra
+    return {"extensions": sorted(exts), "no_extension": True, "libreoffice": libreoffice}
+
+
+@router.get("/openwebui/formats")
+async def openwebui_formats_api() -> dict:
+    """File extensions this app should process for Open WebUI. `no_extension`: files without one too
+    (README, device logs). The patched Open WebUI caches this for a few minutes."""
+    h = await asyncio.to_thread(engine().health)
+    return openwebui_formats(bool(h.get("libreoffice")))
+
+
 @router.put("/openwebui/process")
 async def openwebui_process(
     request: Request,
@@ -109,6 +134,8 @@ async def openwebui_process(
             {
                 "page_content": c.text,
                 "metadata": {
+                    # The patched Open WebUI stores chunks with this mark as they are, without its own splitter.
+                    "loader": "ingestlens",
                     "source": name,
                     "document_id": doc["id"],
                     "run_id": run["id"],

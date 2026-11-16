@@ -4,6 +4,8 @@ Open WebUI(0.11.x)에서 파일을 추가하면 IngestLens가 자동으로 문�
 
 2026-10-07에 Open WebUI **v0.11.3**으로 아래 순서를 실제로 해 보고 확인했다(7절). 답변에 쓴 문서 쪽의 이미지를 채팅에 보여주는 필터 함수는 10절에 있다.
 
+**Open WebUI 0.13.3을 쓰면 12절의 패치를 권한다.** IngestLens가 처리하는 파일만 IngestLens로 보내고 나머지(md, html, json, 코드 ...)는 Open WebUI가 직접 읽는다. 허용 확장자로 막을 필요가 없고, 4-1 ②의 청크 설정도 필요 없다.
+
 ## 1. 동작 방식
 
 ```
@@ -55,7 +57,7 @@ CONTENT_EXTRACTION_ENGINE=external
 EXTERNAL_DOCUMENT_LOADER_URL=http://<IL>:8000/api/openwebui
 EXTERNAL_DOCUMENT_LOADER_API_KEY=<IngestLens 의 RAG_API_KEY 값>
 
-# ② IngestLens 청크를 다시 자르거나 합치지 않기 (중요, 4-3, 4-4)
+# ② IngestLens 청크를 다시 자르거나 합치지 않기 (중요, 4-3, 4-4. 12절 패치를 했으면 필요 없다)
 CHUNK_SIZE=8000
 CHUNK_OVERLAP=0
 CHUNK_MIN_SIZE_TARGET=0
@@ -130,6 +132,7 @@ docker run -d --name open-webui -p 3000:8080 \
 
 - `CHUNK_SIZE=8000`은 IngestLens 청크보다 넉넉히 큰 값이다. IngestLens 청크는 약 500토큰(1,000~1,500자)이고, 긴 표도 IngestLens가 행 단위로 나눠 보낸다.
 - 이 설정은 Open WebUI의 모든 문서에 적용된다. 콘텐츠 추출 엔진이 External이면 모든 파일이 IngestLens를 거치므로 문제없다.
+- 12절 패치를 하면 IngestLens 청크는 이 설정과 상관없이 그대로 저장된다. 청크 설정은 Open WebUI가 직접 읽는 파일에 맞게 둔다.
 
 ### 4-4. 청크 설정 권장 조합 (IngestLens + Open WebUI)
 
@@ -386,3 +389,83 @@ fields:
 - 고정 길이 레코드만 해석한다. 길이가 바뀌는 레코드(앞에 길이가 붙는 형식), 압축·암호화된 데이터(개요의 엔트로피가 8에 가까우면)는 아직 명세로 표현할 수 없다.
 - 작은 모델(`gemma4:e4b`)은 첨부한 개요는 읽지만 명세를 끝까지 다듬는 데 약할 수 있다. 운영 모델로 확인한다.
 - 내려받기 링크(`/api/tools/binary/exports/...`)는 키 없이 열린다(이름이 해시). IngestLens 포트는 내부망에만 연다.
+
+## 12. IngestLens가 처리하는 파일만 보내기 (Open WebUI 패치, 0.13.3)
+
+4절 설정만 하면 Open WebUI는 **모든 파일**을 IngestLens로 보낸다. Open WebUI에는 "이 확장자만 External로" 같은 설정이 없다. 그래서 허용 파일 확장자(`RAG_ALLOWED_FILE_EXTENSIONS`, 관리자 설정 → 문서 → 허용 파일 확장자)로 IngestLens가 처리하는 것만 올리게 막아 두면, 그 밖의 파일(md, html, json, 코드 ...)은 아예 올릴 수 없다.
+
+`openwebui_patch.py`(배포 묶음 폴더, 저장소에서는 `deploy/`)는 Open WebUI를 고쳐서 파일마다 나눠 보낸다.
+
+| 파일 | 읽는 쪽 |
+|---|---|
+| IngestLens가 처리하는 확장자: pdf, 그림(png, jpg, jpeg, tif, tiff, bmp), docx, pptx, xlsx, txt, log, csv, tsv, dat, bin, 확장자 없는 파일. IngestLens 쪽에 LibreOffice가 있으면 doc, ppt, xls, odt, odp, ods, rtf, hwp도 | IngestLens (지금과 같음) |
+| 그 밖의 모든 파일: md, html, json, xml, 코드, epub, msg, zip ... | Open WebUI 자체 로더 (External을 쓰지 않을 때와 같음) |
+
+- 목록은 IngestLens의 `GET /api/openwebui/formats`가 정한다. 패치된 Open WebUI가 이것을 받아 5분 동안 기억한다. 장비 로그 확장자를 더하려면 IngestLens에 `RAG_OPENWEBUI_EXTRA_EXTENSIONS=dlg,rec`처럼 적는다(`.env` 또는 `singularity.env`).
+- IngestLens에 연결되지 않으면 위 표의 기본 목록(LibreOffice 형식 제외)을 쓴다. Open WebUI에 환경 변수 `INGESTLENS_EXTENSIONS=pdf,docx,txt,noext`처럼 주면 IngestLens에 묻지 않고 그 목록만 쓴다(`noext`는 확장자 없는 파일).
+- **청크 설정도 나눈다.** IngestLens가 만든 청크(메타데이터 `loader: ingestlens`)는 Open WebUI의 텍스트 분할기를 건너뛰고 그대로 저장한다. 그래서 4-1의 ② `CHUNK_SIZE=8000`, `CHUNK_OVERLAP=0`, Markdown 헤더 분할 끔은 **필요 없다.** Open WebUI 청크 설정은 Open WebUI가 직접 읽는 파일에 맞게 둔다(기본값 1000/100도 된다). 4-3·4-4의 이유로 넣은 설정은 패치하지 않은 Open WebUI에만 해당한다.
+- IngestLens 앱도 이 기능이 들어간 버전(2026-11-16 이후)이어야 한다. 예전 앱은 `formats`가 없어(그동안 기본 목록을 씀) 청크에 `loader` 표시가 없다. 그러면 Open WebUI가 IngestLens 청크도 자기 설정으로 다시 자른다.
+
+### 12-1. 적용 (Docker)
+
+```bash
+# 배포 묶음 폴더에서. 컨테이너 이름이 open-webui 가 아니면 이름을 준다
+./openwebui_patch.sh open-webui            # 패치하고 컨테이너를 다시 시작
+./openwebui_patch.sh open-webui --check    # 상태: "패치됨", 도우미 모듈 v1
+```
+
+그다음 관리자 설정 → 문서에서:
+1. **허용 파일 확장자를 비운다**(모든 확장자 허용). 환경 변수로 넣었다면 `RAG_ALLOWED_FILE_EXTENSIONS`를 지운다.
+2. 콘텐츠 추출 엔진 External, URL, **API 키**는 4절대로 둔다. 0.13.3은 API 키가 비어 있으면 External을 아예 쓰지 않는다.
+3. 청크 크기·겹침과 Markdown 헤더 분할은 Open WebUI가 직접 읽는 파일 기준으로 정한다(위).
+
+**컨테이너를 새로 만들면 패치가 사라진다**(이미지 교체, `docker rm` 후 `docker run`). 그때마다 `openwebui_patch.sh`를 다시 실행하거나, 패치한 컨테이너를 이미지로 남겨 그 이미지로 띄운다.
+
+```bash
+docker commit open-webui open-webui:v0.13.3-ingestlens
+```
+
+### 12-2. 적용 (Docker 없이 / Singularity)
+
+`openwebui_patch.py`는 Open WebUI가 쓰는 Python으로 실행한다. 표준 라이브러리만 쓴다.
+
+```bash
+python3 openwebui_patch.py                          # pip로 설치한 Open WebUI (open_webui 패키지를 찾아 고친다)
+python3 openwebui_patch.py --root <경로>/open_webui  # 위치를 직접 줄 때
+python3 openwebui_patch.py --check | --revert
+```
+
+Singularity 이미지(.sif)는 읽기 전용이라 샌드박스로 풀어서 고친 뒤 다시 만든다.
+
+```bash
+singularity build --sandbox owui/ open-webui.sif
+python3 openwebui_patch.py --root owui/app/backend/open_webui
+singularity build open-webui-ingestlens.sif owui/
+```
+
+### 12-3. 바꾸는 것과 되돌리기
+
+- `retrieval/loaders/main.py`: External 로더를 고르는 조건에 "IngestLens가 처리하는 확장자인가"를 더한다. 아니면 Open WebUI 기본 로더로 내려간다.
+- `routers/retrieval.py`(`save_docs_to_vector_db`): `loader: ingestlens` 청크는 분할기를 건너뛴다.
+- `retrieval/loaders/ingestlens_route.py`: 새 파일(판단 코드).
+- 고치기 전에 기준 문장이 모두 있는지 확인하고, 하나라도 없으면 아무것도 바꾸지 않고 끝난다(다른 Open WebUI 버전). 원래 파일은 `*.ingestlens-orig`로 남는다. `--revert`(Docker는 `./openwebui_patch.sh open-webui --revert`)로 되돌린다.
+- Open WebUI를 새 버전으로 올리면 먼저 `--check`로 본다. 패치가 없으면 다시 적용하고, 기준 문장을 못 찾는다고 나오면 그 버전에 맞게 패치를 고쳐야 한다.
+- Open WebUI 로그에 파일마다 `IngestLens route: <파일> -> IngestLens` 또는 `-> Open WebUI loaders`가 남는다.
+
+### 12-4. 시험 결과 (2026-11-17, Open WebUI v0.13.3 Docker 이미지)
+
+Open WebUI는 External(IngestLens, 내장 PDF 엔진), `CHUNK_SIZE=300`, 겹침 0으로 띄웠다(다시 잘리는지 보이게 일부러 작게). IngestLens에는 `RAG_OPENWEBUI_EXTRA_EXTENSIONS=dlg`. 같은 파일 7개를 API로 올렸다.
+
+| 파일 | 패치 전: 읽은 쪽, 저장된 조각 | 패치 후: 읽은 쪽, 저장된 조각 |
+|---|---|---|
+| report.pdf (3절) | IngestLens, 21개(300자 이하로 다시 잘림) | IngestLens, **6개**(IngestLens 청크 그대로, 761~910자) |
+| device.log | IngestLens, 12개 | IngestLens, 3개(그대로) |
+| syslog (확장자 없음) | IngestLens, 12개 | IngestLens, 3개(그대로) |
+| sensor.dlg (장비 로그) | IngestLens, 24개 | IngestLens, 6개(그대로, 바이너리 개요) |
+| notes.md | IngestLens(글자 그대로 쪽 그림), 15개 | **Open WebUI 로더**, 16개 |
+| page.html | IngestLens(HTML 소스를 글자로), 7개 | **Open WebUI 로더**(본문만), 5개 |
+| data.json | IngestLens, 15개 | **Open WebUI 로더**, 13개 |
+
+- 패치는 `openwebui_patch.sh`로 컨테이너에 넣었고, `--check`가 "패치됨, 도우미 모듈 v1"을 보였다. 0.13.3 소스 사본에서는 다시 실행(도우미만 새로 씀)과 `--revert`(원본과 똑같이 돌아옴)도 확인했다.
+- 파일 이름 앞의 `<ID>_`와 상관없이 원래 파일 이름의 확장자로 판단한다.
+- 사람이 Open WebUI 화면에서 올리는 경로(채팅 첨부, 지식 베이스)도 같은 처리 함수를 거치지만, 화면으로는 아직 확인하지 않았다.

@@ -23,7 +23,7 @@ PDF 처리(문서를 PDF로 바꾸기, 쪽 분석, 텍스트·표·그림 추출
 | 인터넷 없는 리눅스 서버 | **`deploy/README.md`** | 배포 묶음 파일 하나로 `./install.sh`(Docker) 또는 `./singularity.sh start`. 묶음은 ToolPDF와 함께, 또는 ToolPDF 없이(`--pdf-engine local`) |
 | Linux·macOS 개발 PC | 아래 "실행 (개발)" | 두 저장소를 받아 venv로 실행 |
 | Windows PC에서 Open WebUI까지 시험 | `docs/WINDOWS.md` 7-1절 | `start_webui_test.bat`: IngestLens 스택 + Open WebUI, 이미 떠 있으면 건너뜀 |
-| Open WebUI 연동 | `deploy/OPENWEBUI.md` | 문서 로더, 쪽 이미지 필터 |
+| Open WebUI 연동 | `deploy/OPENWEBUI.md` | 문서 로더, 쪽 이미지 필터, IngestLens가 처리하는 파일만 보내는 패치(0.13.3, 12절) |
 
 ## 문서
 
