@@ -355,6 +355,7 @@
 - 같은 환경에 운영과 같은 reranker(`bge-reranker-v2-m3`, 운영 모델 서버 이미지 `ingestlens-model-server:20261117`을 GPU로, 볼륨 `ingestlens_hf`의 가중치)를 띄워 IngestLens와 Open WebUI 기본에 똑같이 붙였다. `eval_corpus.py openwebui --candidates`(Open WebUI가 뽑을 후보 수, rerank 후 상위 k)를 더했다.
 - 결과(hit@1 / hit@5 / MRR): IngestLens 75% / 90% / 0.81 → **88% / 94% / 0.90**, Open WebUI 기본 88% / 100% / 0.93 → **94% / 100% / 0.96**. IngestLens는 표가 아닌 질문 39개 중 38개가 1위다. 남은 차이는 표 질문(44% 대 67%)과 NIST의 여백 글자. 질의당 165ms 대 754ms.
 - rerank 후보 수를 `models.yaml`의 `reranker.candidates`로 정할 수 있게 했다(`agents/retriever.py` `rerank_pool`, 비우면 상위 k의 3배). 40개로 늘려도 수치는 같고 시간만 두 배라 기본값은 그대로 둔다. 표 청크(약 500토큰, 행이 많음)는 후보에 들어도 reranker가 문장 청크보다 낮게 본다.
+- **묶음과 릴리스 `v20261126`**: `ingestlens-20261126-nomodel`(앱 `d67a305`, 608MB). WSL Docker에 묶음만으로 설치(포트 8128, 모델 주소 비움)해 버전, Open WebUI 로더(`loader: ingestlens`), `POST /api/search/all`, 도구 서버 `openapi.json`(`search_documents`, `list_documents`)을 확인했다. 빌드 중 이 PC에 엔진이 꺼진 Docker Desktop CLI가 생긴 것을 만나 `build_offline_bundle.py`가 그때 WSL을 쓰게 고쳤다.
 - 보고서 `evals/reports/corpus_rerank_20261126.md`. 다음: 표 청크를 작게, 쪽마다 반복되는 여백 글자 빼기, 운영 문서 세트. 시험 1개 추가(후보 수 설정), 전체 141개.
 
 ### 2-37. 선 없는 표의 쌓인 행 나누기 (11-26)
