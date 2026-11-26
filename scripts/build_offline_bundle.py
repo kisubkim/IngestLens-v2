@@ -38,11 +38,25 @@ ROOT = Path(__file__).resolve().parents[1]
 WSL_DISTRO = os.environ.get("INGESTLENS_WSL_DISTRO", "Ubuntu-24.04")
 
 
+def _docker_answers() -> bool:
+    try:
+        return subprocess.run(["docker", "version", "--format", "{{.Server.Version}}"], capture_output=True,
+                              timeout=20).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _docker_prefix() -> list[str]:
-    """`docker` on PATH; on Windows without it, the Docker Engine inside WSL (no Docker Desktop needed)."""
-    if shutil.which("docker") or os.name != "nt" or not shutil.which("wsl.exe"):
+    """`docker` on PATH when its daemon answers; on Windows otherwise the Docker Engine inside WSL (no Docker Desktop
+    needed). A Docker Desktop CLI on PATH whose engine is not running counts as missing. INGESTLENS_DOCKER=wsl forces
+    WSL, INGESTLENS_DOCKER=docker forces the docker on PATH."""
+    wsl = ["wsl.exe", "-d", WSL_DISTRO, "-u", "root", "--cd", str(ROOT), "--", "docker"]
+    force = os.environ.get("INGESTLENS_DOCKER", "").lower()
+    if force == "wsl":
+        return wsl
+    if force == "docker" or os.name != "nt" or not shutil.which("wsl.exe"):
         return ["docker"]
-    return ["wsl.exe", "-d", WSL_DISTRO, "-u", "root", "--cd", str(ROOT), "--", "docker"]
+    return ["docker"] if shutil.which("docker") and _docker_answers() else wsl
 
 
 DOCKER = _docker_prefix()
