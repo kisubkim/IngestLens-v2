@@ -66,6 +66,7 @@ parse:
     max_gap: 40                 # points between figure/table edge and caption
   tables:
     max_empty_cell_ratio: 0.5   # worse than this -> re-extract with the VLM
+    unstack_rows: true          # rows stacked in one cell with <br> (tables without row rules) -> one row each (tools/tables.py)
   relabel_chart_min_area: 0.3   # a chart covering this share of a diagram/image page relabels the page
 
 # Options handed to the PDF engine (ToolPDF >= 0.2.0 "options"; docs/AGENTS.md). Defaults equal the engine's own,

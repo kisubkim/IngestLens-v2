@@ -151,6 +151,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 | 그림 종류 | VLM 답의 첫 줄 `TYPE: <종류>`를 읽는다(chart, diagram, photo, table, text 중 하나). 없거나 모르는 값이면 diagram | — |
 | 다이어그램·이미지 쪽에 큰 차트 | 쪽 면적 30% 이상(`relabel_chart_min_area`)을 차트가 차지하면 쪽 라벨을 chart로 바꾼다 | `vlm_figure_type` |
 | 빈 칸이 많은 표 | 빈 칸 비율이 0.5(`tables.max_empty_cell_ratio`)를 넘으면(병합 셀, 선 없는 칸) 그 표를 잘라 VLM으로 다시 읽는다. 실패하면 원래 표 유지 | `table_empty_cells` |
+| 한 칸에 여러 행이 쌓인 표 | 행 사이에 선이 없는 표(통계표 등)는 엔진이 여러 해의 값을 한 칸에 `<br>`로 쌓는다. 두 칸 이상이 같은 줄 수이고 그중 하나가 숫자뿐이면 그 행을 줄마다 나눈다(나머지 한 줄짜리 칸은 줄마다 반복). 엔진의 빈 머리 이름(`Col1` ...)은 왼쪽 머리 이름으로 채우고, 그다음 행이 숫자 없는 이름뿐이면 머리 행에 합친다. 켜고 끄기: `tables.unstack_rows`(기본 켬), `tools/tables.py` | `table_unstack` |
 | VLM 답이 잘림 | 답이 `max_tokens`(2048)에서 끊기면 한 번 더 `max_tokens_retry`(4096)로 요청한다 | `vlm_truncated_retry` |
 | 캡션 | "그림 1", "[표 2]", "Figure 3" 같은 줄(`captions.pattern`)이 그림·표 위아래 40pt(`max_gap`) 안에 있으면 그 요소 안으로 옮긴다 | — |
 | Office 힌트 | 제목 스타일·슬라이드 제목과 같은 줄은 제목으로, 발표자 노트는 본문으로 붙이고, LibreOffice 변환 시 pptx 차트 데이터는 표로 더한다 | — |
@@ -194,7 +195,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 
 ## 8. ⑦ retriever: 검색 (파이프라인 밖)
 
-검색 화면과 `POST /api/search`가 쓴다. Open WebUI는 IngestLens 청크를 받아 **자기 검색**을 하므로 이 에이전트를 거치지 않는다(`deploy/OPENWEBUI.md`).
+검색 화면과 `POST /api/search`(실행 하나), `POST /api/search/all`과 도구 서버 `/api/tools/search`(모든 문서: 문서마다 마지막 성공 실행)가 쓴다. Open WebUI 지식 베이스는 IngestLens 청크를 받아 **자기 검색**을 하므로 이 에이전트를 거치지 않는다(`deploy/OPENWEBUI.md`).
 
 | 방식 | 판단 |
 |---|---|
@@ -204,6 +205,7 @@ IngestLens는 문서 하나를 여러 에이전트가 차례로 처리한다. �
 | rerank (선택) | 합친 후보 상위 `top_k × 3`개를 reranker로 다시 매긴다 |
 
 - 후보는 방식마다 `max(top_k × 4, 20)`개까지 모은다.
+- 모든 문서 검색: 지금 임베딩 모델로 색인된 문서만 dense로 찾고, 다른 모델로 색인된 문서는 BM25로만 찾아 `notes`에 알린다. BM25의 IDF는 검색 대상 청크 전체로 계산한다.
 - 결과마다 단계별 점수와 순위(dense, BM25, 합친 점수, rerank)를 함께 돌려줘 왜 그 순위인지 보인다.
 
 ## 9. VLM을 쓰는 곳과 없을 때
@@ -237,6 +239,7 @@ VLM에 보내는 질문 형식(프롬프트)과 그 답을 읽는 규칙은 `bac
 | `vlm_error` | parse | VLM 실패 또는 빈 답 → 글자층 대체 |
 | `vlm_truncated_retry` | parse | 잘린 답 다시 요청 |
 | `table_empty_cells` | parse | 표를 VLM으로 다시 읽음 |
+| `table_unstack` | parse | 한 칸에 쌓인 표 행을 나눔 |
 | `vlm_figure_type` | parse | 큰 차트로 쪽을 chart로 다시 분류 |
 | `engine_options`, `engine_options_unsupported` | profile | PDF 엔진에 보낸 표·이미지 옵션(엔진 이름·버전 포함), 또는 옛 ToolPDF라 보내지 못함 |
 | `figure_regions` | parse | 그림 설명 결과 요약 |

@@ -11,6 +11,7 @@ import time
 
 from sqlalchemy import select
 
+from ..config import models_cfg
 from ..db import session
 from ..models import Chunk, Document, Run
 from ..tools import vectorstore
@@ -26,6 +27,12 @@ def latest_run(doc_id: str) -> str | None:
     with session() as s:
         return s.scalars(select(Run.id).where(Run.document_id == doc_id, Run.status == "succeeded")
                          .order_by(Run.created_at.desc())).first()
+
+
+def rerank_pool(top_k: int) -> int:
+    """How many fused candidates the reranker scores: models.yaml reranker.candidates, else 3 x top_k."""
+    n = (models_cfg().get("reranker") or {}).get("candidates")
+    return max(int(n) if n else top_k * 3, top_k)
 
 
 def _ms(t0: float) -> int:
@@ -44,7 +51,7 @@ async def search(query: str, top_k: int = 5, doc_id: str | None = None, run_id: 
         run = s.get(Run, run_id)
         # The query instruction the run's chunks were embedded for (models.yaml may have changed since).
         indexed_prefix = ((run.summary or {}).get("embed") or {}).get("query_prefix") if run else None
-    cand_n = max(top_k * 4, 20)
+    cand_n = max(top_k * 4, 20, rerank_pool(top_k) if rerank else 0)
 
     dense: dict[str, tuple[int, float]] = {}
     if mode in ("dense", "hybrid"):
@@ -86,7 +93,7 @@ async def search(query: str, top_k: int = 5, doc_id: str | None = None, run_id: 
         out["notes"].append("rerank requested but models.yaml reranker.base_url is empty")
     elif rerank and candidates:
         t0 = time.perf_counter()
-        pool = candidates[: max(top_k * 3, top_k)]
+        pool = candidates[: rerank_pool(top_k)]
         scores = await reranker.rerank(query, [chunks[c].text for c in pool])
         rerank_scores = dict(zip(pool, scores))
         candidates = sorted(pool, key=lambda c: rerank_scores[c], reverse=True)
@@ -149,7 +156,7 @@ async def search_all(query: str, top_k: int = 5, document_ids: list[str] | None 
     if not runs:
         out["notes"].append("no document has a succeeded run")
         return out
-    cand_n = max(top_k * 4, 20)
+    cand_n = max(top_k * 4, 20, rerank_pool(top_k) if rerank else 0)
 
     dense: dict[str, tuple[int, float]] = {}
     dense_runs: set[str] = set()
@@ -203,7 +210,7 @@ async def search_all(query: str, top_k: int = 5, document_ids: list[str] | None 
 
     candidates = sorted(set(dense) | set(lexical), key=final, reverse=True)
     out["candidates"] = len(candidates)
-    pool = candidates[: max(top_k * 3, top_k)] if rerank else candidates[:top_k]
+    pool = candidates[: rerank_pool(top_k)] if rerank else candidates[:top_k]
     with session() as s:
         chunks = {c.id: c for c in s.scalars(select(Chunk).where(Chunk.id.in_(pool)))}
     pool = [c for c in pool if c in chunks]

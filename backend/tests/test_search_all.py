@@ -84,3 +84,11 @@ def test_eval_corpus_judge_and_dataset():
     ids = [q["id"] for q in ds["queries"]]
     assert len(ids) == len(set(ids)) >= 40
     assert all(set(q["files"]) <= names and q["answer"] and q["kind"] for q in ds["queries"])
+
+
+def test_rerank_pool(monkeypatch):
+    from app.agents import retriever
+
+    for cfg, want in (({}, 15), ({"candidates": 40}, 40), ({"candidates": 2}, 5)):
+        monkeypatch.setattr(retriever, "models_cfg", lambda cfg=cfg: {"reranker": cfg})
+        assert retriever.rerank_pool(5) == want

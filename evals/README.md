@@ -68,11 +68,14 @@ python scripts/eval_corpus.py report evals/results/corpus/<결과>.json ... --ou
 | 설정 | hit@1 | hit@5 | MRR | 표 질문 hit@1 | 질의당 |
 |---|---|---|---|---|---|
 | IngestLens 모든 문서 검색, hybrid | 75% | 90% | 0.81 | 33% | 53ms |
+| 위 + 표 행 나누기(`table_unstack`) | 75% | 90% | 0.81 | 33% | 37ms |
+| 위 + rerank(`bge-reranker-v2-m3`, 후보 15) | **88%** | 94% | 0.90 | 44% | 165ms |
+| Open WebUI 기본 + 같은 rerank(후보 15 → 5) | **94%** | 100% | 0.96 | 67% | 754ms |
 | IngestLens 모든 문서 검색, dense | 73% | 92% | 0.81 | 44% | 39ms |
 | Open WebUI 0.13.3 + IngestLens 로더(패치) | 73% | 92% | 0.81 | 44% | 166ms |
 | Open WebUI 0.13.3 기본 로더(1024자/100) | **88%** | **100%** | **0.93** | **78%** | 804ms |
 
-정답 문구는 IngestLens 청크에도 모두 있었다. 차이는 청크 모양이다: 선 없는 통계표가 한 칸에 여러 행으로 쌓이고(`<br>`), 쪽마다 반복되는 여백 글자가 청크에 붙고, 낡은 스캔의 OCR 조각이 잡음이 된다. 개선 후보와 자세한 해석은 보고서 끝과 `docs/HANDOFF.md` 6절.
+정답 문구는 IngestLens 청크에도 모두 있었다. 차이는 청크 모양이다: 선 없는 통계표가 한 칸에 여러 행으로 쌓이고(`<br>`), 쪽마다 반복되는 여백 글자가 청크에 붙고, 낡은 스캔의 OCR 조각이 잡음이 된다. 개선 후보와 자세한 해석은 보고서 끝과 `docs/HANDOFF.md` 6절. 표 행 나누기는 표 내용을 바로잡았지만 순위는 그대로였다(`reports/corpus_table_unstack_20261126.md`).
 
 ## 3. VLM 품질 평가: `scripts/eval_vlm.py`
 

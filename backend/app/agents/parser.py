@@ -18,6 +18,7 @@ from ..db import session
 from ..events import emit_event, record_decision
 from ..models import Element, PageProfile
 from ..tools.figures import attach_captions
+from ..tools.tables import tidy as tidy_table
 from ..tools.engine import engine
 from ..tools.vlm import PROMPTS, VLMClient
 from ..tools.vlm_output import md_to_elements, parse_figure, strip_fences
@@ -153,6 +154,20 @@ def _apply_hints(page: int, els: list[dict], hints: dict, rect: list[float], sta
     return els
 
 
+def _tidy_tables(els: list[dict], stats: Counter) -> None:
+    """Rows stacked in one cell (tables without row rules) back to one row each, engine placeholder headers named."""
+    for e in els:
+        if e["type"] != "table":
+            continue
+        content, info = tidy_table(e["content"])
+        if content != e["content"]:
+            e["content"] = content
+            e.setdefault("meta", {})["table_tidy"] = info
+            stats["tables_tidied"] += 1
+            stats["table_rows_split"] += info["rows_split"]
+            stats["table_rows_added"] += info["rows_added"]
+
+
 def _maybe_relabel(run_id: str, page: int, label: str, els: list[dict], min_area: float) -> str | None:
     if label not in ("diagram", "image_heavy"):
         return None
@@ -208,6 +223,8 @@ async def parse(state: PipelineState) -> dict:
             label = label_of.get(page, "mixed")
             els = _merge(run_id, page, label, prep, pcfg, stats)
             els = _apply_hints(page, els, hints, prep["rect"], stats)
+            if pcfg["tables"].get("unstack_rows", True):
+                _tidy_tables(els, stats)
             new_label = _maybe_relabel(run_id, page, label, els, pcfg["relabel_chart_min_area"])
             if new_label:
                 relabeled[page] = new_label
@@ -228,6 +245,18 @@ async def parse(state: PipelineState) -> dict:
         with session() as s:
             for p in s.scalars(select(PageProfile).where(PageProfile.run_id == run_id, PageProfile.page.in_(list(relabeled)))):
                 p.label, p.rule_id, p.confidence = relabeled[p.page], "vlm_figure_type", 0.8
+
+    if stats["tables_tidied"]:
+        record_decision(run_id, STEP, "table rows", f"{stats['tables_tidied']} tables tidied, "
+                        f"{stats['table_rows_split']} stacked rows split into {stats['table_rows_split'] + stats['table_rows_added']}",
+                        rule_id="table_unstack",
+                        inputs={"tables": stats["tables_tidied"], "rows_split": stats["table_rows_split"],
+                                "rows_added": stats["table_rows_added"]},
+                        alternatives=[{"choice": "keep the engine's table", "reason_rejected":
+                                       "values of several rows stacked in one cell lose their row label when chunks split by rows"}],
+                        confidence=0.8,
+                        reasoning="The table had no row rules, so the engine put several rows in one cell (joined by <br>). "
+                                  "Rows were split where at least two cells had the same number of lines and one of them only numbers.")
 
     if stats["figure_regions"]:
         if vlm.enabled:
@@ -256,6 +285,7 @@ async def parse(state: PipelineState) -> dict:
         "figure_regions": stats["figure_regions"],
         "figures_described": stats["figures_described"],
         "tables_reextracted": stats["tables_reextracted"],
+        "tables_tidied": stats["tables_tidied"],
         "pages_relabeled": len(relabeled),
         "office_hints": {k: stats[k] for k in ("hint_titles", "notes", "chart_tables") if stats[k]},
         "window_prepare_s": round(timing["prepare_s"], 1),

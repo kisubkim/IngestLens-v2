@@ -106,7 +106,9 @@ def run_openwebui(a, ds: dict) -> tuple[dict, list[dict]]:
     rows = []
     for q in ds["queries"]:
         t0 = time.perf_counter()
-        body = {"collection_names": [kb["id"]], "query": q["q"], "k": a.k}
+        # With a reranker Open WebUI fetches k candidates and keeps k_reranker; --candidates sets the pool
+        # (IngestLens reranks max(3 x top_k, top_k) candidates).
+        body = {"collection_names": [kb["id"]], "query": q["q"], "k": a.candidates or a.k, "k_reranker": a.k}
         if a.hybrid is not None:
             body["hybrid"] = a.hybrid
         res = c.post("/api/v1/retrieval/query/collection", json=body).raise_for_status().json()
@@ -227,6 +229,8 @@ def main() -> None:
     ow.add_argument("--email", default="")
     ow.add_argument("--password", default="")
     ow.add_argument("--knowledge", required=True, help="지식 베이스 이름 (없으면 만들고 문서를 넣는다)")
+    ow.add_argument("--candidates", type=int, default=0,
+                    help="후보 수(RAG_TOP_K). reranker가 있을 때 이만큼 뽑아 rerank하고 상위 k개를 쓴다 (기본: k)")
     ow.add_argument("--hybrid", action=argparse.BooleanOptionalAction, default=None,
                     help="Open WebUI 설정 대신 hybrid를 켜거나 끈다 (기본: Open WebUI 설정대로)")
     rp = sub.add_parser("report")

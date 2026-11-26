@@ -24,6 +24,7 @@
 - 11-02: 왼쪽 문서 목록 정리(목록만 스크롤, 메뉴 고정, 검색·상태 필터)
 - 11-17: Open WebUI 0.13.3 패치로 IngestLens가 처리하는 파일만 보내고 나머지는 Open WebUI 로더로
 - 11-26: 모든 문서 검색 API와 도구 서버, Open WebUI와 비교하는 평가 세트(첫 비교에서 Open WebUI 기본이 앞섬)
+- 11-26: 선 없는 표의 쌓인 행 나누기(표 내용은 바로잡았지만 검색 수치는 그대로), reranker를 켠 비교(IngestLens 75% → 88%)
 
 ## 1. 한눈에 보기
 
@@ -348,6 +349,22 @@
   - 로컬 CPU reranker는 커진 청크 20개를 60초 안에 rerank하지 못해 시간 초과가 났다(운영 GPU와 무관).
 - `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
 - Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
+
+### 2-38. reranker를 켠 비교 (11-26)
+
+- 같은 환경에 운영과 같은 reranker(`bge-reranker-v2-m3`, 운영 모델 서버 이미지 `ingestlens-model-server:20261117`을 GPU로, 볼륨 `ingestlens_hf`의 가중치)를 띄워 IngestLens와 Open WebUI 기본에 똑같이 붙였다. `eval_corpus.py openwebui --candidates`(Open WebUI가 뽑을 후보 수, rerank 후 상위 k)를 더했다.
+- 결과(hit@1 / hit@5 / MRR): IngestLens 75% / 90% / 0.81 → **88% / 94% / 0.90**, Open WebUI 기본 88% / 100% / 0.93 → **94% / 100% / 0.96**. IngestLens는 표가 아닌 질문 39개 중 38개가 1위다. 남은 차이는 표 질문(44% 대 67%)과 NIST의 여백 글자. 질의당 165ms 대 754ms.
+- rerank 후보 수를 `models.yaml`의 `reranker.candidates`로 정할 수 있게 했다(`agents/retriever.py` `rerank_pool`, 비우면 상위 k의 3배). 40개로 늘려도 수치는 같고 시간만 두 배라 기본값은 그대로 둔다. 표 청크(약 500토큰, 행이 많음)는 후보에 들어도 reranker가 문장 청크보다 낮게 본다.
+- 보고서 `evals/reports/corpus_rerank_20261126.md`. 다음: 표 청크를 작게, 쪽마다 반복되는 여백 글자 빼기, 운영 문서 세트. 시험 1개 추가(후보 수 설정), 전체 141개.
+
+### 2-37. 선 없는 표의 쌓인 행 나누기 (11-26)
+
+2-36 비교에서 가장 큰 차이였던 표 질문(33% 대 78%)의 첫 번째 원인을 고쳤다.
+
+- `tools/tables.py` `tidy`: 표 Markdown에서 한 칸에 `<br>`로 쌓인 여러 행을 한 행씩 나눈다. 조건: 두 칸 이상이 같은 줄 수, 그중 하나는 숫자뿐, 나머지 칸은 비었거나 한 줄(줄마다 반복). 글이 여러 줄인 표(경복궁 설명 표)나 줄 수가 다른 칸은 건드리지 않는다. 엔진의 빈 머리 이름(`Col1` …)은 왼쪽 머리 이름으로 채우고, 그다음 행이 숫자 없는 이름뿐이면 머리 행에 합친다. 바꿀 것이 없으면 원래 글자를 그대로 둔다. ToolPDF(PyMuPDF)와 내장 엔진(pdfplumber) 모두 이렇게 내놓으므로 앱의 파싱 단계(`agents/parser.py` `_tidy_tables`)에서 고친다. 규칙 `parse.tables.unstack_rows`(기본 켬, 규칙 화면), 근거 `table_unstack`, 요약 `parse.tables_tidied`.
+- 결과: 통계표 문서 4개, 보도자료 문서 5개 표가 바로잡혔다(`|2022년|249,186|372,939|…`, 머리 행 `인구동태건수 사망`). 그러나 같은 환경에서 다시 잰 검색 수치는 그대로다(hybrid hit@1 75%, 표 질문 순위 변화 없음). 정답 표 청크는 dense 8~17위이고, 1위는 같은 보도자료의 문장 청크다. bge-m3 유사도가 표 청크 0.52~0.60, 문장 청크 0.61~0.70이고, 표를 평문으로 바꿔도 0.01~0.045만 오른다. 표 모양만으로는 순위가 오르지 않는다(답할 때 연도와 값이 맞게 짝지어지는 효과는 이 세트로 재지 않는다). 보고서 `evals/reports/corpus_table_unstack_20261126.md`.
+- 다음 후보: reranker를 켜고 양쪽 다시 재기(운영은 bge-reranker-v2-m3), 표 청크를 더 작게, 임베딩할 때만 표를 평문으로.
+- 시험 `tests/test_tables.py` 4개. 전체 140개.
 
 ### 2-36. 모든 문서 검색과 Open WebUI 비교 세트 (11-26)
 

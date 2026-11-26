@@ -80,6 +80,7 @@ FIELDS = [
     _f("parse", ["parse", "captions", "max_gap"], "캡션 최대 거리(pt)", "그림·표 위아래 이 거리 안의 캡션만 붙인다.", "float", min=0, max=500, step=1),
     _f("parse", ["parse", "tables", "max_empty_cell_ratio"], "표 재추출 기준 빈 칸 비율", "빈 칸 비율이 이보다 크면(병합 셀, 선 없는 칸) 그 표를 VLM으로 다시 읽는다. 1이면 다시 읽지 않는다.",
        "float", min=0, max=1, step=0.05),
+    _f("parse", ["parse", "tables", "unstack_rows"], "쌓인 표 행 나누기", "행 사이에 선이 없는 표에서 한 칸에 여러 행의 값이 쌓여 나오면(숫자 열) 한 행씩 나눈다. 엔진의 빈 머리 이름(Col1 ...)도 정리한다.", "bool"),
     _f("parse", ["parse", "relabel_chart_min_area"], "차트로 다시 분류할 면적", "다이어그램·이미지 쪽에서 VLM이 차트라고 한 그림이 이 비율 이상이면 쪽 라벨을 chart로 바꾼다.",
        "float", min=0, max=1, step=0.05),
     # chunk (planned by the strategy agent, applied by the chunker)
