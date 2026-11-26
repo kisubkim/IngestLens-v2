@@ -164,6 +164,12 @@ PDF가 아닌 문서는 PDF 엔진이 PDF로 바꾼다(ToolPDF `/v1/normalize` �
 
 reranker가 설정되어 있으면 후보를 다시 정렬한다. 결과마다 단계별 점수와 순위를 함께 반환한다.
 
+**모든 문서 검색** (`POST /api/search/all`): 문서마다 마지막으로 성공한 실행의 청크를 한꺼번에 검색한다. 방식, 가중치, rerank는 위와 같고, `document_ids`로 일부 문서만 고를 수 있다. 결과마다 문서 ID와 이름(Open WebUI가 붙인 `<ID>_`는 뗌)이 붙는다.
+- dense는 지금 `models.yaml`의 임베딩 모델로 색인된 문서만 찾는다. 다른 모델로 색인된 문서는 BM25로만 찾고, 그 이름을 `notes`에 알려 준다(다시 실행하면 새 모델로 색인된다).
+- 문서마다 질의 지시문(`summary.embed.query_prefix`)이 다르면 지시문마다 질의를 따로 임베딩한다. BM25의 IDF는 검색 대상 청크 전체로 계산한다.
+- LLM이 직접 부르는 **도구 서버**도 있다: `/api/tools/search`(`openapi.json`, 도구 `search_documents`, `list_documents`, `RAG_API_KEY` 필요). Open WebUI 연결은 `deploy/OPENWEBUI.md` 13절.
+- Open WebUI 기본 검색과의 비교 방법과 결과는 `evals/README.md` 2-1절.
+
 ## HTTP 수집 API (다른 시스템 연동)
 
 화면 버튼 없이 HTTP로 파일을 보내면 바로 파이프라인이 실행된다. 실행은 화면에서 시작한 것과 같은 줄에 서서 들어온 순서대로 하나씩 진행된다. `RAG_API_KEY`를 설정했으면 `Authorization: Bearer <키>` 헤더가 필요하다.

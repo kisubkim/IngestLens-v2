@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import update
 
-from .api import binary, chunks, documents, evals, ingest, overview, rules, runs, search, settings as settings_api, status
+from .api import binary, chunks, documents, evals, ingest, overview, rules, runs, search, search_tools, settings as settings_api, status
 from .config import ROOT
 from .db import init_db, session
 from .events import bus
@@ -38,6 +38,8 @@ app.include_router(chunks.router)
 app.include_router(rules.router)
 # Binary analysis tools for an LLM (Open WebUI tool server): a separate app so its OpenAPI lists only these tools.
 app.mount("/api/tools/binary", binary.tools_app)
+# Search over all documents for an LLM (Open WebUI tool server), likewise its own app.
+app.mount("/api/tools/search", search_tools.tools_app)
 
 
 @app.get("/api/health")

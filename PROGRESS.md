@@ -1,6 +1,6 @@
 # 진행 상황
 
-최종 갱신: 2026-11-17
+최종 갱신: 2026-11-26
 
 전체 상태, 설계 이유, 운영 절차는 `docs/HANDOFF.md`에 있다. 이 문서는 2026-10-04부터 한 작업의 진행 상황을 정리한다.
 - 10-04 오전: 로컬 실제 모델 검증, VLM 평가 체계
@@ -23,6 +23,7 @@
 - 10-28: 임베딩 지시문(EmbeddingGemma 2 준비, bge-m3와 비교), VLM 점검 스크립트와 비교 순서
 - 11-02: 왼쪽 문서 목록 정리(목록만 스크롤, 메뉴 고정, 검색·상태 필터)
 - 11-17: Open WebUI 0.13.3 패치로 IngestLens가 처리하는 파일만 보내고 나머지는 Open WebUI 로더로
+- 11-26: 모든 문서 검색 API와 도구 서버, Open WebUI와 비교하는 평가 세트(첫 비교에서 Open WebUI 기본이 앞섬)
 
 ## 1. 한눈에 보기
 
@@ -348,6 +349,18 @@
 - `scripts/webui_test.sh`에 `OWUI_TOP_K`, `OWUI_BM25_WEIGHT`(Open WebUI `RAG_TOP_K`, `RAG_HYBRID_BM25_WEIGHT`)를 더했다. 시험 뒤 기본값(5, 0.5)으로 되돌렸다.
 - Open WebUI 지식 베이스 "센서 데이터시트 v2"가 합친 청크로 남아 있다(예전 "센서 데이터시트"는 합치기 전 청크).
 
+### 2-36. 모든 문서 검색과 Open WebUI 비교 세트 (11-26)
+
+사용자 요청: 예전 묶음 정리(20261117 두 개만 남김), 문서의 운영 버전을 Open WebUI 0.13.3으로, 모든 문서 검색 API, Open WebUI 기본 검색과 비교할 세트와 기준.
+
+- 운영 버전 표기: CLAUDE.md, HANDOFF, OPENWEBUI.md 4-5(0.13.3 소스에서 `RAG_EMBEDDING_QUERY_PREFIX`/`CONTENT_PREFIX`/`PREFIX_FIELD_NAME`, `TOOL_SERVER_CONNECTIONS`, `RAG_EXTERNAL_RERANKER_URL` 이름이 그대로인 것 확인).
+- `agents/retriever.py` `search_all`: 문서마다 마지막 성공 실행(`scope`)을 모아 dense(질의 지시문별로 질의 임베딩, Qdrant `MatchAny`로 그 실행들만), BM25(검색 대상 청크 전체로 IDF, 실행 묶음의 해시로 캐시), RRF, rerank. 지금 임베딩 모델과 다른 컬렉션에 색인된 실행은 BM25만 쓰고 `notes`에 이름을 남긴다. 결과에 문서 ID·이름(Open WebUI `<uuid>_` 뗌). `POST /api/search/all`(`document_ids`로 일부만).
+- 도구 서버 `api/search_tools.py`(`/api/tools/search`, 바이너리 도구처럼 별도 앱): `search_documents`(질의, top_k ≤ 20, 문서 이름 일부나 ID로 거르기, rerank는 설정돼 있으면 늘, 쪽은 1부터, 쪽 이미지 주소), `list_documents`. 둘 다 `RAG_API_KEY`. `deploy/OPENWEBUI.md` 13절.
+- 비교 세트 `evals/corpus/queries.json`: 공개 문서 10종 + `manual.pdf` + `guide.docx`, 질문 48개(한국어·영어, 그대로·바꿔 쓴 질문, 표 값, 문서 사이에 헷갈리는 질문). 정답은 사람이 원문을 보고 적은 문구이고, 판정은 "정답 문서의 조각 + 공백 뺀 본문에 정답 문구"라 로더·청크와 상관없이 같은 기준이다. `scripts/eval_corpus.py`(ingestlens / openwebui / report), 결과 JSON은 `evals/results/corpus/`.
+- 첫 비교(이 PC의 WSL Docker, 모두 같은 Ollama bge-m3, rerank 없음): Open WebUI 0.13.3 기본 로더 hit@1 88% / hit@5 100%, IngestLens hybrid 75% / 90%, Open WebUI + IngestLens 로더 73% / 92%. 정답 문구는 IngestLens 청크에도 다 있어 **순위 문제**다. 원인: 선 없는 통계표가 한 칸에 여러 행으로 쌓임(`<br>`), NIST의 옆 여백 세로 글자가 청크마다 붙음, NACA의 낡은 OCR 글자층이 1~3글자 조각 156개, RRF에서 BM25가 dense 1위를 내림. IngestLens가 나은 곳은 스캔 문서(Open WebUI 기본은 처리 실패)와 영어 바꿔 쓴 질문, 속도(30~53ms 대 430~800ms). 보고서 `evals/reports/corpus_compare_20261126.md`, 개선 후보는 HANDOFF 6절.
+- Open WebUI 0.13.3은 reranker가 없으면 hybrid 후보를 임베딩 유사도로 다시 정렬해서 벡터만과 결과가 같았다(HANDOFF 9절).
+- 시험 2개 추가(모든 문서 검색: 방식별, 문서 거르기, 새 실행이 예전 실행을 대신함, 도구 서버 OpenAPI·키·이름 거르기·404·목록. 평가 스크립트의 정답 판정과 세트 형식). 전체 136개, 세 설정.
+
 ### 2-35. Open WebUI에서 IngestLens가 처리하는 파일만 보내기 (11-17)
 
 사용자 요청: Open WebUI(운영 0.13.3)에서 정해진 형식이 아니면 파일을 올릴 수 없게 되어 있다. IngestLens가 처리하는 것만 IngestLens로 가져오고 나머지는 Open WebUI 기본 처리로 가게 한다.
@@ -378,7 +391,7 @@
 - **EmbeddingGemma 2(google/embeddinggemma-2, 2026-10-06, Apache-2.0, 768차원):** 모델 서버가 Gemma 계열을 알아보고 sentence-transformers 방식과 bfloat16(GPU)으로 올린다(모델 카드: float16은 값이 소리 없이 틀림). `--embed-backend`, 요청의 `dimensions`. 모델 서버 이미지에 sentence-transformers, Pillow, torchvision 추가(텍스트만 써도 전처리기가 요구). 이 PC에서 CPU로 띄워 공식 `prompt_name` 결과와 코사인 0.999 이상 일치 확인.
 - **비교(합성 세트 22문항):** dense hit@1 bge-m3 95%, EmbeddingGemma 2 지시문 있음 100%, 없음 91%. hybrid 82% / 91% / 82%. 지시문이 성패를 가른다.
 - **Open WebUI:** 0.11.3 소스에서 `RAG_EMBEDDING_QUERY_PREFIX`, `RAG_EMBEDDING_CONTENT_PREFIX`(필드 이름 설정이 없으면 글 앞에 붙임)를 확인하고 `deploy/OPENWEBUI.md` 4-5에 적었다.
-- **운영 버전(사용자 확인): vLLM 0.32.0, Open WebUI 0.12.3.** vLLM 0.32.0 릴리스 노트에 EmbeddingGemma 2 지원(PR #60254)이 있어 실행 명령(`--runner pooling --dtype bfloat16 --limit-mm-per-prompt image=0,audio=0,video=0`)을 `docs/EMBEDDING_MODELS.md` 7절에 적었다. Open WebUI 0.12.3 이미지의 소스에서 문서 로더, 청크, 임베딩 지시문, 도구 서버, reranker 설정이 0.11.3과 같은 것을 확인했다(화면 시험은 아직).
+- **운영 버전(사용자 확인): vLLM 0.32.0, Open WebUI 0.12.3.** (11월에 Open WebUI 0.13.3으로 올림, 2-35) vLLM 0.32.0 릴리스 노트에 EmbeddingGemma 2 지원(PR #60254)이 있어 실행 명령(`--runner pooling --dtype bfloat16 --limit-mm-per-prompt image=0,audio=0,video=0`)을 `docs/EMBEDDING_MODELS.md` 7절에 적었다. Open WebUI 0.12.3 이미지의 소스에서 문서 로더, 청크, 임베딩 지시문, 도구 서버, reranker 설정이 0.11.3과 같은 것을 확인했다(화면 시험은 아직).
 - **묶음 `ingestlens-20261102`**(앱 `e50a2c9`, 4,584MB): 왼쪽 문서 목록 정리를 넣었다. WSL Docker에 묶음만으로 설치(포트 8128)해 상태, 새 화면 파일, CSV 업로드를 확인했다.
 - **묶음 `ingestlens-20261028`**(앱 `0f4f540`, 4,582MB): WSL Docker 설치로 PDF·장비 로그 처리와 바이너리 도구, 모델 서버 이미지로 EmbeddingGemma 2 적재(CPU)를 확인했다.
 

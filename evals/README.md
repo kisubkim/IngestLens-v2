@@ -46,6 +46,34 @@
 - 지표: hit@1, hit@k, MRR@k.
 - `--models`로 다른 `models.yaml`을 지정하면 모델끼리 비교할 수 있다.
 
+## 2-1. 전체 문서 검색과 Open WebUI 비교: `scripts/eval_corpus.py`
+
+문서 여러 개를 한꺼번에 넣고 "어느 문서의 어느 구절인지"까지 찾는지 잰다. 같은 질문 세트를 **IngestLens 모든 문서 검색**(`POST /api/search/all`)과 **Open WebUI 지식 베이스 검색**(`/api/v1/retrieval/query/collection`)에 똑같이 던져 비교한다.
+
+```bash
+python scripts/eval_corpus.py ingestlens --url http://<IngestLens>:8000 --key <RAG_API_KEY> --name "IngestLens bge-m3" [--modes dense,lexical,hybrid,rerank]
+python scripts/eval_corpus.py openwebui --url http://<Open WebUI> --email <관리자> --password <비밀번호> --knowledge eval-corpus --name "Open WebUI 기본" [--no-hybrid]
+python scripts/eval_corpus.py report evals/results/corpus/<결과>.json ... --out evals/reports/corpus_<이름>.md
+```
+
+- **세트** `evals/corpus/queries.json`: 공개 문서 10종(`samples/`)과 합성 문서 2종(`synthetic/manual.pdf`, `guide.docx`), 질문 48개. 질문마다 정답 문서(`file`, 같은 내용이 다른 문서에도 있으면 `files`)와 정답 문구(`answer`, 원문을 보고 적음), 종류(`kind`: `ko_lexical`, `ko_paraphrase`, `en_lexical`, `en_paraphrase`, `table`, `cross_doc`)가 있다.
+- **정답 판정**: 검색된 조각이 정답 문서에서 나왔고, 공백을 모두 뺀 본문에 정답 문구(역시 공백 뺌)가 들어 있으면 맞다. 쪽 번호를 쓰지 않으므로 어느 로더·청크 방식에도 같은 기준이 된다.
+- **지표**: hit@1, hit@k(기본 5), MRR@k, doc@1(1위가 정답 문서인지), LLM에 넘어가는 글자 수(상위 k개 합), 질의당 시간. 종류별로도 나눈다.
+- **문서 넣기**: IngestLens는 `POST /api/ingest`로 올리고(같은 파일은 다시 처리하지 않는다) 그 문서들만 검색한다. Open WebUI는 `--knowledge` 이름의 지식 베이스가 없으면 만들어 파일을 넣고, 있으면 그대로 검색한다. 설정을 바꿔 다시 재려면 새 이름을 쓴다.
+- **공정하게 비교하려면**: 같은 임베딩 모델, rerank 있음/없음을 맞춘다. Open WebUI 0.13.3은 reranker가 없으면 hybrid 후보 상위 k개를 임베딩 유사도로 다시 정렬한다(벡터만과 결과가 거의 같다). 결과 파일(`evals/results/corpus/`)에 설정과 질문별 상위 결과가 남는다.
+- 회사 문서로 재려면 같은 형식으로 세트를 따로 만든다(공개 저장소에는 넣지 않는다). 질문은 사람이 문서를 보고 쓰고, 표 값·바꿔 쓴 질문·비슷한 문서끼리 헷갈리는 질문을 섞는다.
+
+**2026-11-26 결과**(`reports/corpus_compare_20261126.md`, 이 PC의 Docker, 같은 Ollama `bge-m3`, rerank 없음):
+
+| 설정 | hit@1 | hit@5 | MRR | 표 질문 hit@1 | 질의당 |
+|---|---|---|---|---|---|
+| IngestLens 모든 문서 검색, hybrid | 75% | 90% | 0.81 | 33% | 53ms |
+| IngestLens 모든 문서 검색, dense | 73% | 92% | 0.81 | 44% | 39ms |
+| Open WebUI 0.13.3 + IngestLens 로더(패치) | 73% | 92% | 0.81 | 44% | 166ms |
+| Open WebUI 0.13.3 기본 로더(1024자/100) | **88%** | **100%** | **0.93** | **78%** | 804ms |
+
+정답 문구는 IngestLens 청크에도 모두 있었다. 차이는 청크 모양이다: 선 없는 통계표가 한 칸에 여러 행으로 쌓이고(`<br>`), 쪽마다 반복되는 여백 글자가 청크에 붙고, 낡은 스캔의 OCR 조각이 잡음이 된다. 개선 후보와 자세한 해석은 보고서 끝과 `docs/HANDOFF.md` 6절.
+
 ## 3. VLM 품질 평가: `scripts/eval_vlm.py`
 
 VL 모델을 바꿀 때 같은 문서로 OCR, 표, 그림 설명 품질을 재고 결과를 파일로 남긴다. 앱의 **"VLM 평가 비교"** 화면(`/#evals`)이 이 파일들을 나란히 보여준다.

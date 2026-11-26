@@ -59,11 +59,18 @@ def forget_all() -> None:
     _cache.clear()
 
 
+def cached(key: str) -> tuple[BM25, list[str]] | None:
+    if key in _cache:
+        _cache.move_to_end(key)
+        return _cache[key]
+    return None
+
+
 def index_for(run_id: str, chunks: list[tuple[str, str]]) -> tuple[BM25, list[str]]:
-    """chunks: (chunk_id, text). Cached per run; chunks of a finished run never change."""
-    if run_id in _cache:
-        _cache.move_to_end(run_id)
-        return _cache[run_id]
+    """chunks: (chunk_id, text). Cached per run (or per set of runs, keyed by the caller); chunks of a finished run
+    never change."""
+    if (hit := cached(run_id)) is not None:
+        return hit
     idx = (BM25([t for _, t in chunks]), [cid for cid, _ in chunks])
     _cache[run_id] = idx
     while len(_cache) > 8:

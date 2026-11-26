@@ -1,6 +1,6 @@
 # HANDOFF: 다른 환경에서 이어서 개선하기 위한 문서
 
-최종 갱신: 2026-11-17. 이 문서는 현재 상태, 새 환경 준비, 실제 모델 연결 절차, 튜닝 방법, 남은 일, 개발 중 겪은 함정을 정리한다.
+최종 갱신: 2026-11-26. 이 문서는 현재 상태, 새 환경 준비, 실제 모델 연결 절차, 튜닝 방법, 남은 일, 개발 중 겪은 함정을 정리한다.
 원래 계획은 `docs/PLAN.md`, 평가 방법은 `evals/README.md`에 있다.
 
 ---
@@ -25,6 +25,7 @@
 | 화면 보강 (10-04) | 완료 | 첫 화면 현황판, 백엔드 상태 표시, 문서·전체 삭제, 파싱 리포트 통계 차트 |
 | 오프라인 배포 (10-05~07) | 완료 | 배포 묶음(Docker + Singularity `.sif`), 임베딩·rerank 단일 프로세스 모델 서버, Open WebUI v0.11.3 연동 검증 |
 | PDF 엔진 ToolPDF (10-08~09) | 완료 | 모든 PDF 처리를 ToolPDF HTTP API로, 파일 전송 두 방식(HTTP 업로드, 공유 폴더), Docker 스택과 배포 묶음(Docker, Singularity)에 ToolPDF 포함, MIT 라이선스 |
+| 모든 문서 검색과 Open WebUI 비교 세트 (11-26) | 완료 | `POST /api/search/all`(문서마다 마지막 성공 실행, dense·BM25·hybrid·rerank, 다른 임베딩 모델로 색인된 문서는 BM25만), 도구 서버 `/api/tools/search`(`search_documents`, `list_documents`), 비교 세트 `evals/corpus/queries.json`(12개 문서, 질문 48개)과 `scripts/eval_corpus.py`. 첫 비교에서 Open WebUI 기본 로더가 앞섬(7절), 원인과 개선 후보는 6절 |
 | Open WebUI 파일 나눠 보내기 (11-17) | 완료 | Open WebUI 0.13.3 패치(`deploy/openwebui_patch.py`, Docker는 `openwebui_patch.sh`): External이어도 IngestLens가 처리하는 확장자(`GET /api/openwebui/formats`)만 보내고 나머지는 Open WebUI 자체 로더로. `loader: ingestlens` 청크는 Open WebUI가 다시 자르지 않음. 0.13.3 컨테이너에서 확인(`deploy/OPENWEBUI.md` 12절) |
 | 왼쪽 문서 목록 정리 (11-02) | 완료 | 문서가 많아도 목록만 패널 안에서 스크롤, 메뉴는 아래에 고정, 이름 검색과 실행 상태 필터("N개 중 M개"), 연 문서가 목록에서 보이게 스크롤 |
 | 임베딩 지시문과 모델 비교 준비 (10-28) | 완료 | `embedding.query_prefix`/`document_prefix`/`dimensions`, 실행이 색인된 질의 지시문으로 검색, 모델 서버의 EmbeddingGemma 2(sentence-transformers, bfloat16), Open WebUI 지시문 설정, VLM 점검 스크립트 `check_vlm.py` |
@@ -297,6 +298,8 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [ ] 짧은 청크의 임베딩 검색이 약하다. 합친 LIS3DH WHO_AM_I 청크(54토큰)도 한국어 질문에 dense 20위(BM25 1위)라 Open WebUI가 TOP_K 10에서도 못 가져왔다. 후보: 청크 임베딩에 문서 제목·절 경로를 붙여 넣기(contextual chunk), 질문을 문서 언어로 바꿔 한 번 더 검색, 절 단위로 짧은 절끼리 합치기.
 - [ ] 절의 첫 청크만 검색되고 정답이 두 번째 청크에 있는 경우(MPU-6000 I2C 주소 "b110100X"). 후보: 검색된 청크의 같은 절 이웃 청크를 함께 넘기기(Open WebUI 쪽에서는 어려우므로 IngestLens 검색 API 쪽).
 - [x] PDF 엔진 인터페이스와 내장 엔진(2026-10-10, `docs/ENGINE_PLAN.md` 9절). 남은 것: 두 엔진으로 검색 품질 비교(`eval_retrieval.py`, 실제 운영 문서), 큰 문서 속도(`bench_large.py`, 내장 엔진은 앱 프로세스의 스레드에서 돈다), 오래된 OCR 글자층에서 제목 조각이 많은 문제(내장 엔진).
+- [ ] **검색 품질: Open WebUI 기본 로더보다 낮다**(2026-11-26, `evals/reports/corpus_compare_20261126.md`. hit@1 75% 대 88%, 표 질문 33% 대 78%). 정답 문구는 청크에 다 있고 순위가 밀린다. 고칠 것(하나씩 고치고 `eval_corpus.py`로 다시 잰다): ① 선 없는 통계표에서 한 칸에 `<br>`로 쌓인 여러 행을 행으로 나누기(`ko_table_kostat`, 머리 행이 `Col1|Col3…`이 되는 것도) ② 쪽마다 반복되는 머리글·꼬리글·옆 여백 글자 빼기(NIST의 세로 글자) ③ 낡은 OCR 글자층의 1~3글자 조각(NACA 156개) 합치거나 버리기 ④ hybrid에서 BM25가 dense 1위를 끌어내리는 경우(가중치 또는 rerank). 운영 문서로 만든 세트로도 잰다.
+- [ ] 모든 문서 검색 도구 서버(`/api/tools/search`, `deploy/OPENWEBUI.md` 13절): Open WebUI 화면에서 모델이 도구를 불러 답하는 흐름 확인.
 - [ ] Open WebUI 패치(`openwebui_patch.py`, 12절): 운영 Open WebUI 0.13.3에 적용하고 화면(채팅 첨부, 지식 베이스)에서 md·pdf를 올려 확인. Open WebUI를 올릴 때마다 `--check`, 기준 문장이 바뀌면 패치를 그 버전에 맞게 고친다.
 - [ ] 바이너리 도구: Open WebUI **화면**에서 도구 실행까지 이어지는 흐름 확인(API로는 등록·첨부·모델의 도구 호출까지, 실행 루프는 같은 도구로 Ollama `gemma4:12b`에서 확인), 운영 vLLM 모델의 도구 호출 설정(`--enable-auto-tool-choice`, 모델별 `--tool-call-parser`), 길이가 바뀌는 레코드와 압축 데이터는 명세로 표현 못 함, 실제 장비 로그로 개요의 레코드·헤더 추정이 맞는지.
 - [x] 암호 PDF(2026-10-10): 업로드의 `password` 폼 필드, `PUT /api/documents/{id}/password`, 실패한 실행 화면의 입력란. 두 엔진 모두. 비밀번호는 DB(`documents.password`)에 평문으로 저장된다(쪽 이미지를 나중에 그릴 때도 필요). 문서 내용도 이미 DB와 벡터에 평문으로 있으므로 같은 보호 수준이다. Open WebUI 로더로는 비밀번호를 넘길 수 없다.
@@ -308,10 +311,10 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - [x] 문서 삭제와 전체 삭제(2026-10-04): `DELETE /api/documents/{id}`, `DELETE /api/documents?confirm=all`, 문서 화면의 "문서 삭제", 저장 위치 설정의 "데이터 비우기". run 하나만 지우는 기능은 없다(다시 실행하면 이전 run의 벡터는 지워지고 기록은 남는다).
 
 **P2: 기능과 확장**
-- [ ] 모든 문서를 대상으로 하는 검색 API와 Open WebUI 도구 연결. 지금 `POST /api/search`는 문서 하나(실행 하나) 안에서만 검색한다. LLM이 IngestLens를 직접 검색하게 하려면 필요하다(`deploy/OPENWEBUI.md` 9절).
+- [x] 모든 문서를 대상으로 하는 검색 API와 Open WebUI 도구 연결(2026-11-26, `POST /api/search/all`, `/api/tools/search`). 예전 메모: 지금 `POST /api/search`는 문서 하나(실행 하나) 안에서만 검색한다. LLM이 IngestLens를 직접 검색하게 하려면 필요하다(`deploy/OPENWEBUI.md` 9절).
 - [ ] 화면에서 버튼이 꺼진 이유(바꾼 값 없음, 관리자 키 필요)를 표시한다. 사용자가 저장 위치 설정의 저장 버튼이 왜 꺼져 있는지 헷갈려 했다.
 - [x] 임베딩 질의·문서 접두어(`query_prefix`/`document_prefix`, `{title}`)와 차원 축소(`dimensions`) 지원(2026-10-28). EmbeddingGemma 2를 모델 서버로 띄우는 것까지 확인(`docs/EMBEDDING_MODELS.md` 7절). 남은 것: 운영 문서로 bge-m3와 비교, 운영 GPU에서 bfloat16으로 띄우기.
-- [ ] 운영 환경(2026-10-28 사용자 확인: vLLM 0.32.0, Open WebUI 0.12.3)에서 확인: Open WebUI 0.12.3의 소스에서 문서 로더(`PUT /process`, `X-Filename`), 청크 설정, 임베딩 지시문, 도구 서버, 외부 reranker 설정이 0.11.3과 같은 것은 확인했다. 실제 화면(문서 첨부, 쪽 이미지 필터, 바이너리 도구 실행)은 0.12.3에서 아직 시험하지 않았다. vLLM 0.32.0은 EmbeddingGemma 2를 지원한다(`docs/EMBEDDING_MODELS.md` 7절의 명령, `--dtype bfloat16`).
+- [ ] 운영 환경(vLLM 0.32.0, Open WebUI **0.13.3**. 2026-10-28에는 0.12.3이었고 11월에 0.13.3으로 올림)에서 확인: Open WebUI 0.13.3 소스에서 문서 로더(External은 API 키가 있어야 동작), 임베딩 지시문, 도구 서버, 외부 reranker 설정 이름이 그대로인 것을 확인했다(2026-11-26). 0.12.3의 소스에서 문서 로더(`PUT /process`, `X-Filename`), 청크 설정, 임베딩 지시문, 도구 서버, 외부 reranker 설정이 0.11.3과 같은 것은 확인했다. 실제 화면(문서 첨부, 쪽 이미지 필터, 바이너리 도구 실행)은 0.12.3·0.13.3에서 아직 시험하지 않았다(0.13.3 컨테이너에서는 API로 문서 로더와 패치만 확인). vLLM 0.32.0은 EmbeddingGemma 2를 지원한다(`docs/EMBEDDING_MODELS.md` 7절의 명령, `--dtype bfloat16`).
 - [ ] VLM 바꾸기 검토(DeepSeek V4.1 Flash 1017 등): `scripts/check_vlm.py`로 이미지 입력을 점검하고 `eval_vlm.py`로 Qwen3-VL과 비교(`evals/README.md` 3-1). 문서·OCR 성능의 공개 수치는 없다.
 - [ ] 검색 결과로 LLM 답변 생성과 인용(텍스트 LLM endpoint 추가)
 - [ ] 여러 서버 인스턴스로 확장: Qdrant 서버(`RAG_QDRANT_URL`), PostgreSQL(`RAG_DB_URL`), 작업 큐(arq 등)
@@ -331,6 +334,7 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 | 2026-10-04 | 3페이지 PDF(텍스트, 스캔, 차트 그림), 같은 스택 | 전체 60s(모델 첫 로드 포함), 그림 설명 1회 8.0s, rerank 15개 1.6~2.2s(CPU) | manual.pdf 12p는 32s |
 | 2026-10-10 | 두 PDF 엔진 비교: ToolPDF 0.2.0(PyMuPDF 1.28.2, 프로세스 4개) 대 내장 엔진(pypdfium2 5.13.0, pdfplumber 0.11.10), 공개 문서 10종 50쪽(`evals/samples`), 같은 규칙, VLM 없이 | 쪽 라벨 50/50 같음, 표 20 대 20, 그림 영역 40 대 40, 글자 수 대부분 ±3%. 문서당 쪽 분석 + 추출 0.3~3.4초 대 0.1~2.8초 | 다른 점: 오래된 스캔의 OCR 글자층(NACA) 제목 149 대 588. 맞추느라 바꾼 것(선 개수를 PDFium 경로 수로, 열린 표 테두리 한도 400pt, 글자 없는 격자 버림, `line_margin` 0.8)은 `docs/ENGINE_PLAN.md` 9절 |
 | 2026-10-28 | 배포 묶음 `ingestlens-20261028`(`--singularity`, 앱 `0f4f540`, ToolPDF 0.2.0), WSL Docker Engine에 묶음만으로 설치(포트 8128), 모델 주소 비움 | 묶음 4,582MB(앱 sif 161MB, 모델 서버 sif 4,199MB). PDF 엔진 ToolPDF 0.2.0 정상, sample.pdf 라벨 정상, 장비 로그 2만 레코드 해석·내보내기·내려받기. 모델 서버 이미지(torch 2.11 cu128, sentence-transformers 6.2)를 CPU로 띄워 EmbeddingGemma 2를 st 방식으로 4.7초에 올리고 `dimensions` 256 정상 | 모델 서버 이미지가 커짐(torchvision 추가). 같은 PC의 다른 vLLM이 GPU를 쓰고 있어 GPU 시험은 하지 않음 |
+| 2026-11-26 | 모든 문서 검색 비교: 공개 문서 10종 + 합성 2종, 질문 48개(`evals/corpus/queries.json`), 상위 5. 이 PC의 WSL Docker: IngestLens(이 저장소 코드, ToolPDF 0.2.0, VLM `qwen2.5vl:7b`), Open WebUI 0.13.3 기본 로더(1024자/100), Open WebUI 0.13.3 + IngestLens 로더(패치). 모두 같은 Ollama `bge-m3`, rerank 없음 | hit@1 / hit@5 / MRR: IngestLens hybrid 75% / 90% / 0.81, dense 73% / 92% / 0.81, Open WebUI + IngestLens 로더 73% / 92% / 0.81, **Open WebUI 기본 88% / 100% / 0.93**. 표 질문 9개 hit@1 33~44% 대 78%. 질의당 IngestLens 30~53ms, Open WebUI 430~800ms | 정답은 IngestLens 청크에도 다 있음(순위 문제). Open WebUI 기본 로더는 스캔 문서를 처리하지 못함. 6절의 개선 후보. `evals/reports/corpus_compare_20261126.md` |
 | 2026-11-17 | 배포 묶음 `ingestlens-20261117-nomodel`(`--singularity --no-model-server`, 앱 `67b475e`, ToolPDF 0.2.0), WSL Docker Engine에 묶음만으로 설치(포트 8128), 모델 주소 비움 | 묶음 608MB(앱 이미지 163MB, 앱 sif 162MB, ToolPDF 폴더). SHA256SUMS 정상, 버전 20261117, `GET /api/openwebui/formats` 정상(LibreOffice 없음), 로더로 .log 처리하고 청크에 `loader: ingestlens` | `models.yaml`의 VLM 자리표시를 그대로 두면 처리가 InvalidURL로 실패한다(알려진 동작, 9절). GitHub 릴리스 `v20261117`의 첨부 파일 |
 | 2026-11-17 | Open WebUI v0.13.3(Docker 이미지, 패치 전후) + IngestLens(이 저장소 코드, 내장 PDF 엔진), Open WebUI `CHUNK_SIZE=300`, 파일 7개를 API로 업로드 | 패치 전: 7개 모두 IngestLens, IngestLens 청크도 300자 이하로 다시 잘림(report.pdf 21조각). 패치 후: pdf·log·확장자 없는 파일·dlg는 IngestLens(청크 그대로, report.pdf 6조각), md·html·json은 Open WebUI 로더 | 화면 업로드는 미확인. `deploy/OPENWEBUI.md` 12-4 |
 | 2026-11-02 | 배포 묶음 `ingestlens-20261102`(`--singularity`, 앱 `e50a2c9`, ToolPDF 0.2.0), WSL Docker Engine에 묶음만으로 설치(`.env`의 `INGESTLENS_PORT=8128`), 모델 주소 비움 | 묶음 4,584MB(앱 sif 154MB, 모델 서버 sif 4,005MB). SHA256SUMS 정상, `/api/health` 버전 20261102, PDF 엔진 ToolPDF 0.2.0(shared), 화면에 새 목록(`side-menu`)과 투명 스크롤바 CSS, CSV 업로드 정상 | 화면만 바뀐 묶음이라 모델 서버는 다시 띄우지 않음. 포트는 셸 변수가 아니라 `.env`에서 바꿔야 한다(install.sh가 `.env`를 읽어 덮어씀) |
@@ -399,6 +403,8 @@ Open WebUI 서버에서 이 서버의 포트(기본 8000)에 접속할 수 있�
 - **Singularity는 이미지의 WORKDIR이 아니라 실행한 사람의 폴더에서 시작한다**: 그래서 앱 이미지의 시작 명령은 `uvicorn --app-dir /app/backend`로 폴더와 상관없이 동작하게 했다. 또 Singularity는 호스트 네트워크를 그대로 쓰므로 포트는 `INGESTLENS_PORT`로 정하고, 모델 서버 주소는 `127.0.0.1`이다(`models.singularity.yaml`).
 - **Windows(WSL2)의 Docker 안에서는 `apptainer --nv`가 GPU를 찾지 못한다**: WSL2의 GPU는 `/dev/dxg`로 전달되고 `/dev/nvidia*` 장치가 없기 때문이다. GPU 동작은 같은 이미지를 Docker `--gpus all`로 띄워 확인한다.
 - **Open WebUI 0.13.3은 External 문서 로더의 API 키가 비어 있으면 External을 쓰지 않는다**(`_get_loader`의 조건). IngestLens의 `RAG_API_KEY`를 비워 두었어도 Open WebUI 쪽에는 아무 값이나 넣는다. 또 Open WebUI에는 "이 확장자만 External로" 같은 설정이 없다. 허용 확장자(`RAG_ALLOWED_FILE_EXTENSIONS`)는 업로드 자체를 막을 뿐이라, 나눠 보내려면 패치가 필요하다(`deploy/OPENWEBUI.md` 12절).
+- **Open WebUI 0.13.3의 hybrid 검색은 reranker가 없으면 사실상 벡터 검색이다**: 네이티브 hybrid가 상위 k개를 뽑은 뒤 `RerankCompressor`가 임베딩 유사도로 다시 정렬한다. 2026-11-26 비교에서 hybrid와 벡터만의 결과가 48개 질문 모두 같았다. 비교할 때 rerank 유무를 맞춘다.
+- **WSL의 Docker 컨테이너에서 Windows의 127.0.0.1 서비스(Windows Ollama, Windows에서 띄운 앱)에 닿지 않는다**(WSL2 NAT): 비교 환경은 Ollama까지 모두 컨테이너로 같은 네트워크에 띄운다(`ollama/ollama` + 볼륨 `ingestlens_ollama`에 bge-m3, qwen2.5vl:7b가 있다).
 - **GitHub 릴리스는 gh 없이 API로 올린다**: `git credential fill`로 받은 토큰으로 `POST /repos/{repo}/releases`, 첨부는 `uploads.github.com/.../assets?name=`. 첨부 파일 하나는 2GiB 미만이어야 해서 모델 서버 이미지가 든 묶음(4.8GB)은 올릴 수 없다. 릴리스에는 `--no-model-server` 묶음을 올린다. 토큰은 출력하거나 파일에 남기지 않는다.
 - **Windows에서 받은 Open WebUI 소스는 줄 끝이 CRLF다**: 패치의 기준 문장을 찾을 때 줄 끝을 LF로 바꿔 비교한다(`openwebui_patch.py` `read`). 컨테이너 안의 파일은 LF다.
 - **Open WebUI는 문서 로더가 돌려준 청크를 자기 설정으로 다시 자른다**: 기본값은 1000자, 겹침 100자, Markdown 헤더 분할이다. 그대로 두면 IngestLens 청크 49개가 58개로 늘고 표가 잘렸다. `CHUNK_SIZE=8000`, `CHUNK_OVERLAP=0`, `ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER=false`로 둔다.

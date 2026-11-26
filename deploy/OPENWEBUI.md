@@ -174,7 +174,7 @@ docker run -d --name open-webui -p 3000:8080 \
 
 ### 4-5. 임베딩 모델에 지시문이 필요할 때 (EmbeddingGemma 2 등)
 
-Open WebUI는 IngestLens가 준 청크를 자기 임베딩으로 다시 넣고 검색한다. 지시문이 필요한 임베딩 모델(EmbeddingGemma 2, e5)이면 IngestLens(`models.yaml`의 `embedding.query_prefix`, `document_prefix`)와 같은 지시문을 Open WebUI에도 준다. 0.11.3과 0.12.3 소스에서 확인한 환경 변수:
+Open WebUI는 IngestLens가 준 청크를 자기 임베딩으로 다시 넣고 검색한다. 지시문이 필요한 임베딩 모델(EmbeddingGemma 2, e5)이면 IngestLens(`models.yaml`의 `embedding.query_prefix`, `document_prefix`)와 같은 지시문을 Open WebUI에도 준다. 0.11.3, 0.12.3, 0.13.3 소스에서 확인한 환경 변수:
 
 ```bash
 RAG_EMBEDDING_MODEL=embeddinggemma-2
@@ -259,10 +259,7 @@ RAG_EMBEDDING_CONTENT_PREFIX="title: none | text: "
 
 ## 9. 지금 안 되는 것
 
-**LLM이 IngestLens 검색 API를 직접 호출하는 방식**(Open WebUI 도구나 도구 서버로 연결)은 아직 지원하지 않는다.
-- 지금 IngestLens 검색 API(`POST /api/search`)는 문서 하나(또는 실행 하나) 안에서만 검색한다.
-- 모든 문서를 대상으로 검색하는 API와 Open WebUI 도구 연결이 필요하면 추가 개발한다.
-- 이 가이드의 방식은 Open WebUI가 IngestLens의 청크를 받아 자기 지식 베이스에서 검색하는 것이다. 검색 결과는 같은 모델 서버(bge-m3, reranker)를 쓰므로 품질 차이는 크지 않다.
+**LLM이 IngestLens 검색을 직접 호출하는 방식**은 2026-11-26에 생겼다. 모든 문서 검색 API(`POST /api/search/all`)와 도구 서버(`/api/tools/search`)이고, 설정은 13절이다. 4절의 지식 베이스 방식과 함께 쓸 수 있다.
 
 **암호가 걸린 PDF**는 Open WebUI로 넣으면 실패한다(502). Open WebUI 문서 로더는 비밀번호를 넘길 방법이 없다. IngestLens 화면에서 그 문서를 열어 실패한 실행의 입력란에 비밀번호를 넣고 다시 실행한 뒤, Open WebUI에서 같은 파일을 다시 추가하면 처리된 청크를 받는다(같은 파일은 다시 처리하지 않고 끝난 실행을 쓴다).
 
@@ -469,3 +466,23 @@ Open WebUI는 External(IngestLens, 내장 PDF 엔진), `CHUNK_SIZE=300`, 겹침 
 - 패치는 `openwebui_patch.sh`로 컨테이너에 넣었고, `--check`가 "패치됨, 도우미 모듈 v1"을 보였다. 0.13.3 소스 사본에서는 다시 실행(도우미만 새로 씀)과 `--revert`(원본과 똑같이 돌아옴)도 확인했다.
 - 파일 이름 앞의 `<ID>_`와 상관없이 원래 파일 이름의 확장자로 판단한다.
 - 사람이 Open WebUI 화면에서 올리는 경로(채팅 첨부, 지식 베이스)도 같은 처리 함수를 거치지만, 화면으로는 아직 확인하지 않았다.
+
+## 13. LLM이 IngestLens를 직접 검색하게 하기 (도구 서버)
+
+4절의 방식은 Open WebUI가 IngestLens 청크를 받아 **자기 지식 베이스**에서 검색하는 것이다. 이 절은 반대로, 채팅 모델이 IngestLens에 처리된 **모든 문서**를 IngestLens의 검색(벡터 + BM25, rerank)으로 직접 찾게 하는 도구다. 지식 베이스를 고르지 않아도 되고, IngestLens에 바로 올린 문서(화면, `POST /api/ingest`)도 찾는다.
+
+| 도구 | 하는 일 |
+|---|---|
+| `search_documents` | 질의로 모든 문서(또는 `documents`로 고른 문서)를 검색해 상위 구절을 돌려준다: 문서 이름, 쪽(1부터), 절, 본문, 쪽 이미지 주소 |
+| `list_documents` | 검색할 수 있는 문서 목록(이름, ID, 쪽 수, 청크 수) |
+
+설정(관리자 설정 → 연결 또는 도구 → 도구 서버(OpenAPI) 추가):
+- URL: `http://<IngestLens 주소>:8000/api/tools/search`, OpenAPI 경로: `openapi.json`
+- 인증: Bearer, 키는 IngestLens의 `RAG_API_KEY`
+- 환경 변수로 넣을 때: `TOOL_SERVER_CONNECTIONS='[{"type":"openapi","url":"http://<IngestLens 주소>:8000/api/tools/search","path":"openapi.json","auth_type":"bearer","key":"<RAG_API_KEY>","config":{"enable":true},"info":{"name":"IngestLens search"}}]'` (11절의 바이너리 도구와 함께 쓰려면 배열에 둘 다 넣는다)
+- 모델은 도구 호출을 해야 한다(11-1의 3번과 같다). 채팅 입력창의 도구에서 "IngestLens search"를 켜고 묻는다.
+
+- rerank는 IngestLens의 `models.yaml`에 reranker가 있으면 늘 쓴다.
+- 쪽 이미지 주소는 `RAG_PUBLIC_URL`(없으면 요청 주소)로 만든다. 사용자 브라우저에서 열려야 보인다(10-6).
+- Open WebUI의 지식 베이스 검색과 어떤 쪽이 나은지는 문서와 질문에 따라 다르다. 같은 질문 세트로 둘을 재는 방법은 `evals/README.md` 2-1절.
+- 아직 Open WebUI 화면에서 모델이 이 도구를 부르는 흐름은 사람이 확인해야 한다. API(`openapi.json`, 키 검사, 검색 결과)는 시험으로 확인했다.

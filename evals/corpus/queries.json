@@ -1,0 +1,472 @@
+{
+  "name": "공개 문서 10종 + 합성 문서 2종 (전체 문서 검색)",
+  "about": "문서 여러 개를 한꺼번에 넣고 검색해서, 정답 문서의 정답 구절이 몇 위에 나오는지 본다. 정답: 검색된 조각이 file(또는 files 중 하나)에서 나왔고, 공백을 뺀 본문에 answer 중 하나가 들어 있으면 맞다. answer는 사람이 원문을 보고 적었다.",
+  "documents": [
+    "../samples/ko_chart_kostat.pdf",
+    "../samples/ko_table_kostat.pdf",
+    "../samples/ko_scan_kostat.pdf",
+    "../samples/ko_chart_population.pdf",
+    "../samples/ko_image_gyeongbokgung.pdf",
+    "../samples/ko_mixed_seoul.pdf",
+    "../samples/ko_text_hunminjeongeum.pdf",
+    "../samples/en_mixed_nist.pdf",
+    "../samples/en_paper_docling.pdf",
+    "../samples/en_scan_naca1135.pdf",
+    "../synthetic/manual.pdf",
+    "../synthetic/guide.docx"
+  ],
+  "queries": [
+    {
+      "id": "kostat-01",
+      "q": "2025년 8월 출생아 수",
+      "answer": [
+        "20,867"
+      ],
+      "kind": "ko_lexical",
+      "files": [
+        "ko_chart_kostat.pdf",
+        "ko_scan_kostat.pdf"
+      ]
+    },
+    {
+      "id": "kostat-02",
+      "q": "8월에 태어난 아기는 작년 같은 달보다 몇 명 늘었나",
+      "answer": [
+        "764명(3.8%)",
+        "증감 764"
+      ],
+      "kind": "ko_paraphrase",
+      "files": [
+        "ko_chart_kostat.pdf",
+        "ko_scan_kostat.pdf"
+      ]
+    },
+    {
+      "id": "kostat-03",
+      "q": "2025년 8월 혼인 건수",
+      "file": "ko_chart_kostat.pdf",
+      "answer": [
+        "19,449"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "kostat-04",
+      "q": "이혼이 늘어난 시도는 어디인가",
+      "file": "ko_chart_kostat.pdf",
+      "answer": [
+        "서울, 대구 등 5개 시도는 증가"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "kostat-05",
+      "q": "8월 사망자가 줄어든 지역은 몇 곳인가",
+      "file": "ko_chart_kostat.pdf",
+      "answer": [
+        "모든 시도에서 감소"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "kostat-06",
+      "q": "세종시 출생아 수 1~8월 누계",
+      "answer": [
+        "1,938"
+      ],
+      "kind": "table",
+      "files": [
+        "ko_chart_kostat.pdf",
+        "ko_scan_kostat.pdf"
+      ]
+    },
+    {
+      "id": "table-01",
+      "q": "2022년 연간 사망자 수",
+      "answer": [
+        "372,939"
+      ],
+      "kind": "table",
+      "files": [
+        "ko_table_kostat.pdf",
+        "ko_scan_kostat.pdf"
+      ]
+    },
+    {
+      "id": "table-02",
+      "q": "2020년 자연증가 인구",
+      "answer": [
+        "-32,611"
+      ],
+      "kind": "table",
+      "files": [
+        "ko_table_kostat.pdf",
+        "ko_scan_kostat.pdf"
+      ]
+    },
+    {
+      "id": "table-03",
+      "q": "2024년 2분기 혼인 건수",
+      "answer": [
+        "55,906"
+      ],
+      "kind": "table",
+      "files": [
+        "ko_table_kostat.pdf",
+        "ko_scan_kostat.pdf"
+      ]
+    },
+    {
+      "id": "table-04",
+      "q": "2019년 부산 출생아 수",
+      "file": "ko_table_kostat.pdf",
+      "answer": [
+        "17,049"
+      ],
+      "kind": "table"
+    },
+    {
+      "id": "pop-01",
+      "q": "인구가 처음으로 5천만 명을 넘어선 시점",
+      "file": "ko_chart_population.pdf",
+      "answer": [
+        "처음으로 5,000만 명을 넘어섰"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "pop-02",
+      "q": "2024년 합계출산율",
+      "file": "ko_chart_population.pdf",
+      "answer": [
+        "0.75"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "pop-03",
+      "q": "1989년 대한민국 인구 밀도",
+      "file": "ko_chart_population.pdf",
+      "answer": [
+        "약 425명"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "pop-04",
+      "q": "1988년 서울의 인구 밀도는 1제곱킬로미터당 몇 명이었나",
+      "file": "ko_chart_population.pdf",
+      "answer": [
+        "17,030명"
+      ],
+      "kind": "cross_doc"
+    },
+    {
+      "id": "palace-01",
+      "q": "경복궁은 언제 누가 처음 지었나",
+      "file": "ko_image_gyeongbokgung.pdf",
+      "answer": [
+        "1395년 태조 이성계"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "palace-02",
+      "q": "광화문 천장에 그려진 그림",
+      "file": "ko_image_gyeongbokgung.pdf",
+      "answer": [
+        "주작과 용과 거북"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "palace-03",
+      "q": "영제교의 길이와 너비",
+      "file": "ko_image_gyeongbokgung.pdf",
+      "answer": [
+        "13.85m"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "palace-04",
+      "q": "근정전의 국보 지정 번호",
+      "file": "ko_image_gyeongbokgung.pdf",
+      "answer": [
+        "국보 제 223호"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "palace-05",
+      "q": "가을을 맞이한다는 뜻을 가진 궁궐 문",
+      "file": "ko_image_gyeongbokgung.pdf",
+      "answer": [
+        "영추문이라 이름하였다"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "seoul-01",
+      "q": "서울특별시의 면적",
+      "file": "ko_mixed_seoul.pdf",
+      "answer": [
+        "605.23"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "seoul-02",
+      "q": "서울에서 관측된 가장 더운 날의 기온",
+      "file": "ko_mixed_seoul.pdf",
+      "answer": [
+        "2018년 8월 1일의 39.6"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "seoul-03",
+      "q": "서울 연평균 강수량",
+      "file": "ko_mixed_seoul.pdf",
+      "answer": [
+        "1,417.9"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "seoul-04",
+      "q": "서울 화강암은 얼마나 오래된 암석인가",
+      "file": "ko_mixed_seoul.pdf",
+      "answer": [
+        "160±10"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "seoul-05",
+      "q": "서울 인구가 천만 명 아래로 떨어진 때",
+      "file": "ko_mixed_seoul.pdf",
+      "answer": [
+        "2016년 5월"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "seoul-06",
+      "q": "1970년 서울 출생아 수",
+      "file": "ko_mixed_seoul.pdf",
+      "answer": [
+        "111,799"
+      ],
+      "kind": "table"
+    },
+    {
+      "id": "hangul-01",
+      "q": "훈민정음 반포 시기",
+      "file": "ko_text_hunminjeongeum.pdf",
+      "answer": [
+        "1446년 음력 9월"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "hangul-02",
+      "q": "해례본이 처음 발견된 곳과 해",
+      "file": "ko_text_hunminjeongeum.pdf",
+      "answer": [
+        "1940년에 안동에서 처음으로 발견"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "hangul-03",
+      "q": "전형필이 해례본을 사는 데 치른 값",
+      "file": "ko_text_hunminjeongeum.pdf",
+      "answer": [
+        "기와집 10채"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "hangul-04",
+      "q": "상주본을 기증하는 대가로 요구한 금액",
+      "file": "ko_text_hunminjeongeum.pdf",
+      "answer": [
+        "1천억 원"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "hangul-05",
+      "q": "지금은 쓰지 않는 옛 한글 자모",
+      "file": "ko_text_hunminjeongeum.pdf",
+      "answer": [
+        "현재 사용하지 않는 4글자"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "nist-01",
+      "q": "What do PDP and PEP stand for?",
+      "file": "en_mixed_nist.pdf",
+      "answer": [
+        "policy decision point (PDP)"
+      ],
+      "kind": "en_lexical"
+    },
+    {
+      "id": "nist-02",
+      "q": "Which real-world analogy explains the implicit trust zone?",
+      "file": "en_mixed_nist.pdf",
+      "answer": [
+        "passenger screening model in an airport"
+      ],
+      "kind": "en_paraphrase"
+    },
+    {
+      "id": "nist-03",
+      "q": "How does a laptop reach an HR database through the local agent and gateway?",
+      "file": "en_mixed_nist.pdf",
+      "answer": [
+        "human resources application/database"
+      ],
+      "kind": "en_paraphrase"
+    },
+    {
+      "id": "nist-04",
+      "q": "Why is a portal-based deployment exposed to attacks?",
+      "file": "en_mixed_nist.pdf",
+      "answer": [
+        "denial-of-service (DoS) attack against the portal"
+      ],
+      "kind": "en_paraphrase"
+    },
+    {
+      "id": "nist-05",
+      "q": "trust algorithm of the policy engine",
+      "file": "en_mixed_nist.pdf",
+      "answer": [
+        "the policy engine can be thought of as the brain"
+      ],
+      "kind": "en_lexical"
+    },
+    {
+      "id": "docling-01",
+      "q": "Which OCR library does Docling use?",
+      "file": "en_paper_docling.pdf",
+      "answer": [
+        "EasyOCR"
+      ],
+      "kind": "en_lexical"
+    },
+    {
+      "id": "docling-02",
+      "q": "How long does table structure recognition take per table on a CPU?",
+      "file": "en_paper_docling.pdf",
+      "answer": [
+        "between 2 and 6 seconds"
+      ],
+      "kind": "en_paraphrase"
+    },
+    {
+      "id": "docling-03",
+      "q": "Docling pages per second on Apple M3 Max",
+      "file": "en_paper_docling.pdf",
+      "answer": [
+        "AppleM3Max"
+      ],
+      "kind": "table"
+    },
+    {
+      "id": "docling-04",
+      "q": "image resolution given to the OCR engine",
+      "file": "en_paper_docling.pdf",
+      "answer": [
+        "216 dpi"
+      ],
+      "kind": "en_lexical"
+    },
+    {
+      "id": "docling-05",
+      "q": "What is the name of the table structure model?",
+      "file": "en_paper_docling.pdf",
+      "answer": [
+        "TableFormer"
+      ],
+      "kind": "en_lexical"
+    },
+    {
+      "id": "naca-01",
+      "q": "report on equations, tables and charts for compressible flow by Ames",
+      "file": "en_scan_naca1135.pdf",
+      "answer": [
+        "AMES RESEARCH STAFF",
+        "AMEs RESEARCHSTAFF"
+      ],
+      "kind": "en_lexical"
+    },
+    {
+      "id": "manual-01",
+      "q": "냉각수 온도 유지 범위",
+      "file": "manual.pdf",
+      "answer": [
+        "18도에서 22도"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "manual-02",
+      "q": "전기가 끊기면 장비가 얼마나 버티나",
+      "file": "manual.pdf",
+      "answer": [
+        "15분 동안"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "manual-03",
+      "q": "E-305 알람의 의미",
+      "file": "manual.pdf",
+      "answer": [
+        "E-305는 진공 이상"
+      ],
+      "kind": "ko_lexical"
+    },
+    {
+      "id": "manual-04",
+      "q": "배기 필터는 얼마마다 바꾸나",
+      "file": "manual.pdf",
+      "answer": [
+        "500시간마다"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "manual-05",
+      "q": "2분기 가동률이 낮았던 이유",
+      "file": "manual.pdf",
+      "answer": [
+        "펌프 교체"
+      ],
+      "kind": "table"
+    },
+    {
+      "id": "guide-01",
+      "q": "설치하기 전에 준비할 물건",
+      "file": "guide.docx",
+      "answer": [
+        "전원 케이블, 통신 케이블, 설정 파일"
+      ],
+      "kind": "ko_paraphrase"
+    },
+    {
+      "id": "guide-02",
+      "q": "진동 점검 주기와 기준",
+      "file": "guide.docx",
+      "answer": [
+        "월간"
+      ],
+      "kind": "table"
+    }
+  ]
+}

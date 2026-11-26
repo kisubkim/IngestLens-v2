@@ -58,8 +58,13 @@ def upsert(name: str, items: list[tuple[str, list[float], dict]]) -> None:
     client().upsert(name, points=[models.PointStruct(id=point_id(cid), vector=vec, payload=payload) for cid, vec, payload in items])
 
 
-def search(name: str, vector: list[float], top_k: int, doc_id: str | None = None, run_id: str | None = None) -> list[dict]:
-    flt = _match(doc_id=doc_id, run_id=run_id) if (doc_id or run_id) else None
+def search(name: str, vector: list[float], top_k: int, doc_id: str | None = None, run_id: str | None = None,
+           run_ids: list[str] | None = None) -> list[dict]:
+    """run_ids: any of these runs (the all-documents search); doc_id/run_id: exactly that one."""
+    if run_ids is not None:
+        flt = models.Filter(must=[models.FieldCondition(key="run_id", match=models.MatchAny(any=run_ids))])
+    else:
+        flt = _match(doc_id=doc_id, run_id=run_id) if (doc_id or run_id) else None
     res = client().query_points(name, query=vector, limit=top_k, query_filter=flt, with_payload=True)
     return [{"score": p.score, **(p.payload or {})} for p in res.points]
 
